@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"health-tool/domain"
 	"path/filepath"
 	"testing"
@@ -81,5 +82,75 @@ func TestAppNotifiesWhenAnAutomaticWorkSegmentStarts(t *testing.T) {
 	app.recordActivity(domain.EffectiveActivity{Kind: domain.Click, At: start.Add(7 * time.Minute)})
 	if starts != 2 {
 		t.Fatalf("auto-resume notifications = %d, want 2", starts)
+	}
+}
+
+func TestAppTimelineStartsWithWorkAndTracksDuration(t *testing.T) {
+	start := time.Unix(0, 0)
+	now := start
+	app := newApp(func() time.Time { return now }, func() {})
+
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start})
+	now = start.Add(90 * time.Second)
+
+	entries := app.Timeline()
+	if len(entries) != 1 {
+		t.Fatalf("timeline entries = %d, want 1", len(entries))
+	}
+	entry := entries[0]
+	if entry.Kind != "working" || entry.EndedAt != nil || entry.DurationSeconds != 90 {
+		t.Fatalf("working entry = %+v, want ongoing 90-second entry", entry)
+	}
+}
+
+func TestAppTimelineRecordsIdlePauseAndRest(t *testing.T) {
+	start := time.Unix(0, 0)
+	now := start
+	settings := Settings{ReminderMinutes: 1, RestMinutes: 1}
+	app := newAppWithSettings(func() time.Time { return now }, func() {}, settings)
+
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start})
+	now = start.Add(5 * time.Minute)
+	app.Status()
+	now = start.Add(6 * time.Minute)
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.Click, At: now})
+	now = start.Add(7 * time.Minute)
+	app.Status()
+
+	entries := app.Timeline()
+	if len(entries) != 4 {
+		t.Fatalf("timeline entries = %d, want 4", len(entries))
+	}
+	for i, want := range []string{"working", "idle-paused", "working", "resting"} {
+		if entries[i].Kind != want {
+			t.Fatalf("timeline entry %d kind = %q, want %q", i, entries[i].Kind, want)
+		}
+	}
+	if entries[0].EndedAt == nil || entries[1].EndedAt == nil || entries[2].EndedAt == nil {
+		t.Fatalf("completed timeline entries have missing end time: %+v", entries)
+	}
+
+	now = start.Add(8 * time.Minute)
+	app.Status()
+	entries = app.Timeline()
+	if entries[3].EndedAt == nil {
+		t.Fatal("rest entry is still open after rest ended")
+	}
+}
+
+func TestAppTimelineStartsEmpty(t *testing.T) {
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+
+	if entries := app.Timeline(); len(entries) != 0 {
+		t.Fatalf("timeline entries = %d, want empty", len(entries))
+	}
+}
+
+func TestAppAllowsRequestedQuit(t *testing.T) {
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	app.requestQuit()
+
+	if app.beforeClose(context.Background()) {
+		t.Fatal("requested quit was intercepted as a window hide")
 	}
 }

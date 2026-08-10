@@ -7,3 +7,5 @@ export function GetSettings():Promise<main.Settings>;
 export function SaveSettings(arg1:number,arg2:number):Promise<boolean>;
 
 export function Status():Promise<main.AppStatus>;
+
+export function Timeline():Promise<Array<main.TimelineEntry>>;

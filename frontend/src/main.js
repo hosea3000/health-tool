@@ -1,7 +1,7 @@
 import './style.css';
 import './app.css';
 
-import {GetSettings as backendGetSettings, SaveSettings as backendSave, Status as backendStatus} from '../wailsjs/go/main/App';
+import {GetSettings as backendGetSettings, SaveSettings as backendSave, Status as backendStatus, Timeline as backendTimeline} from '../wailsjs/go/main/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 
 document.querySelector('#app').innerHTML = `
@@ -31,6 +31,10 @@ document.querySelector('#app').innerHTML = `
                 <article class="insight-card insight-lavender"><span>02</span><strong>自动恢复</strong><p>启动、闲置暂停和休息结束后，下一次有效活动会自动开始新工作段。</p></article>
                 <article class="insight-card insight-teal"><span>03</span><strong>只在本地</strong><p>不记录输入内容、坐标或窗口信息，数据只为这一次提醒服务。</p></article>
             </section>
+            <section class="timeline-section" aria-labelledby="timeline-title">
+                <div class="section-heading"><div><p class="eyebrow">今天的节奏</p><h2 id="timeline-title">工作与休息记录</h2></div><span class="section-note">仅保留本次运行记录</span></div>
+                <div class="timeline-list" id="timeline-list"></div>
+            </section>
         </main>
         <footer class="footer"><span>为身体留一点空间</span><span>久坐提醒 · 本地运行</span></footer>
         <div class="settings-backdrop" id="settings-panel" hidden>
@@ -52,6 +56,7 @@ document.querySelector('#app').innerHTML = `
 `;
 
 const labels = {waiting: '待工作', working: '工作段进行中', 'idle-paused': '闲置暂停', resting: '休息中'};
+const timelineLabels = {working: '工作段', resting: '提醒休息', 'idle-paused': '闲置暂停'};
 const hasWailsBridge = typeof window.go?.main?.App?.Status === 'function';
 const previewSettingsKey = 'health-tool.settings';
 let previewState = hasWailsBridge ? 'waiting' : 'working';
@@ -61,6 +66,7 @@ let previewRestMinutes = Number(JSON.parse(localStorage.getItem(previewSettingsK
 
 const api = {
     status: () => hasWailsBridge ? backendStatus() : Promise.resolve({state: previewState, elapsedSeconds: previewElapsed, reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes, restRemainingSeconds: 0}),
+    timeline: () => hasWailsBridge ? backendTimeline() : Promise.resolve([]),
     settings: () => hasWailsBridge ? backendGetSettings() : Promise.resolve({reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes}),
     saveSettings: (reminderMinutes, restMinutes) => {
         if (hasWailsBridge) return backendSave(reminderMinutes, restMinutes);
@@ -83,6 +89,7 @@ const settingRange = document.getElementById('setting-range');
 const settingRestMinutes = document.getElementById('setting-rest-minutes');
 const settingRestRange = document.getElementById('setting-rest-range');
 const settingsError = document.getElementById('settings-error');
+const timelineList = document.getElementById('timeline-list');
 
 function formatElapsed(seconds) {
     const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -90,8 +97,33 @@ function formatElapsed(seconds) {
     return `${minutes}:${remainder}`;
 }
 
+function formatTimelineTime(value) {
+    return new Intl.DateTimeFormat('zh-CN', {hour: '2-digit', minute: '2-digit'}).format(new Date(value));
+}
+
+function formatDuration(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return minutes ? `${minutes} 分 ${remainder} 秒` : `${remainder} 秒`;
+}
+
+function renderTimeline(entries) {
+    if (!entries.length) {
+        timelineList.innerHTML = '<p class="timeline-empty">还没有工作或休息记录，下一次有效活动会从这里开始。</p>';
+        return;
+    }
+    timelineList.innerHTML = entries.map((entry) => {
+        const end = entry.endedAt ? formatTimelineTime(entry.endedAt) : '进行中';
+        return `<article class="timeline-entry timeline-${entry.kind}">
+            <div class="timeline-dot" aria-hidden="true"></div>
+            <div class="timeline-entry-content"><div class="timeline-entry-heading"><strong>${timelineLabels[entry.kind] ?? entry.kind}</strong><span>${formatDuration(entry.durationSeconds)}</span></div>
+            <p>${formatTimelineTime(entry.startedAt)} – ${end}</p></div>
+        </article>`;
+    }).join('');
+}
+
 async function refreshStatus() {
-    const current = await api.status();
+    const [current, timeline] = await Promise.all([api.status(), api.timeline()]);
     const resting = current.state === 'resting';
     const totalSeconds = (resting ? current.restMinutes : current.reminderMinutes) * 60;
     const progressSeconds = resting ? totalSeconds - current.restRemainingSeconds : current.elapsedSeconds;
@@ -101,6 +133,7 @@ async function refreshStatus() {
     trackEndLabelElement.textContent = resting ? `休息结束 / ${current.restMinutes} 分钟` : `起身提醒 / ${current.reminderMinutes} 分钟`;
     heroElement.dataset.state = current.state;
     progressElement.style.width = `${Math.min(Math.max(progressSeconds, 0) / totalSeconds, 1) * 100}%`;
+    renderTimeline(timeline);
 }
 
 function closeSettings() { settingsPanel.hidden = true; }

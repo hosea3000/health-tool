@@ -6,17 +6,23 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
-	// Create an instance of the app structure
 	app := NewApp()
 
-	// Create application with options
-	err := wails.Run(&options.App{
+	err := wails.Run(newAppOptions(app))
+	if err != nil {
+		println("Error:", err.Error())
+	}
+}
+
+func newAppOptions(app *App) *options.App {
+	return &options.App{
 		Title:  "health-tool",
 		Width:  1024,
 		Height: 768,
@@ -27,12 +33,25 @@ func main() {
 		OnStartup:        app.startup,
 		OnBeforeClose:    app.beforeClose,
 		OnShutdown:       app.shutdown,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId: "health-tool",
+			OnSecondInstanceLaunch: func(options.SecondInstanceData) {
+				app.showMainWindow()
+			},
+		},
 		Bind: []interface{}{
 			app,
 		},
-	})
-
-	if err != nil {
-		println("Error:", err.Error())
 	}
+}
+
+func (a *App) showMainWindow() {
+	a.mu.Lock()
+	ctx := a.ctx
+	a.mu.Unlock()
+	if ctx == nil {
+		return
+	}
+	runtime.WindowUnminimise(ctx)
+	runtime.WindowShow(ctx)
 }

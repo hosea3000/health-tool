@@ -13,3 +13,7 @@ export function SaveSettings(arg1, arg2) {
 export function Status() {
   return window['go']['main']['App']['Status']();
 }
+
+export function Timeline() {
+  return window['go']['main']['App']['Timeline']();
+}

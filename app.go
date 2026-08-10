@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -21,6 +23,8 @@ type App struct {
 	lastTick      time.Time
 	settings      Settings
 	settingsPath  string
+	timeline      []TimelineEntry
+	quitRequested atomic.Bool
 }
 
 func NewApp() *App {
@@ -71,8 +75,15 @@ func (a *App) shutdown(_ context.Context) {
 }
 
 func (a *App) beforeClose(ctx context.Context) bool {
+	if a.quitRequested.Load() {
+		return false
+	}
 	runtime.WindowHide(ctx)
 	return true
+}
+
+func (a *App) requestQuit() {
+	a.quitRequested.Store(true)
 }
 
 type AppStatus struct {
@@ -81,6 +92,13 @@ type AppStatus struct {
 	ReminderMinutes      int    `json:"reminderMinutes"`
 	RestMinutes          int    `json:"restMinutes"`
 	RestRemainingSeconds int64  `json:"restRemainingSeconds"`
+}
+
+type TimelineEntry struct {
+	Kind            string     `json:"kind"`
+	StartedAt       time.Time  `json:"startedAt"`
+	EndedAt         *time.Time `json:"endedAt,omitempty"`
+	DurationSeconds int64      `json:"durationSeconds"`
 }
 
 func (a *App) Status() AppStatus {
@@ -106,6 +124,27 @@ func (a *App) Status() AppStatus {
 	return status
 }
 
+func (a *App) Timeline() []TimelineEntry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	now := a.now()
+	entries := append([]TimelineEntry(nil), a.timeline...)
+	sort.SliceStable(entries, func(i, j int) bool {
+		return entries[i].StartedAt.Before(entries[j].StartedAt)
+	})
+	for i := range entries {
+		end := now
+		if entries[i].EndedAt != nil {
+			end = *entries[i].EndedAt
+		}
+		if end.After(entries[i].StartedAt) {
+			entries[i].DurationSeconds = int64(end.Sub(entries[i].StartedAt) / time.Second)
+		}
+	}
+	return entries
+}
+
 func (a *App) GetSettings() Settings {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -129,7 +168,10 @@ func (a *App) recordActivity(activity domain.EffectiveActivity) {
 	a.mu.Lock()
 	reminder := a.advanceLocked(activity.At)
 	started := false
-	if result := a.monitor.EffectiveActivity(activity); result.Reminder {
+	before := a.monitor.State()
+	result := a.monitor.EffectiveActivity(activity)
+	a.recordTimelineTransitionLocked(before, a.monitor.State(), activity.At)
+	if result.Reminder {
 		reminder = true
 	} else if result.Changed && a.monitor.State() == domain.Working {
 		started = true
@@ -156,7 +198,9 @@ func (a *App) tick() {
 			now := a.now()
 			reminder := false
 			if workstationLocked() || (a.monitor.State() == domain.Working && now.Sub(a.lastTick) >= 5*time.Minute) {
+				before := a.monitor.State()
 				a.monitor.PauseForIdle()
+				a.recordTimelineTransitionLocked(before, a.monitor.State(), now)
 				updateTrayState(a.monitor.State().String())
 			} else {
 				reminder = a.advanceLocked(now)
@@ -174,12 +218,31 @@ func (a *App) tick() {
 }
 
 func (a *App) advanceLocked(now time.Time) bool {
+	before := a.monitor.State()
 	if result := a.monitor.Advance(now); result.Reminder {
+		a.recordTimelineTransitionLocked(before, a.monitor.State(), now)
 		updateTrayState(a.monitor.State().String())
 		return true
 	}
+	a.recordTimelineTransitionLocked(before, a.monitor.State(), now)
 	updateTrayState(a.monitor.State().String())
 	return false
+}
+
+func (a *App) recordTimelineTransitionLocked(before, after domain.State, at time.Time) {
+	if before == after {
+		return
+	}
+	if len(a.timeline) > 0 && a.timeline[len(a.timeline)-1].EndedAt == nil {
+		last := &a.timeline[len(a.timeline)-1]
+		if !at.Before(last.StartedAt) {
+			endedAt := at
+			last.EndedAt = &endedAt
+		}
+	}
+	if after == domain.Working || after == domain.Resting || after == domain.IdlePaused {
+		a.timeline = append(a.timeline, TimelineEntry{Kind: after.String(), StartedAt: at})
+	}
 }
 
 func (a *App) notifyReminder(restMinutes int) {

@@ -3,17 +3,22 @@
 package main
 
 import (
+	_ "embed"
 	"sync/atomic"
 
 	"github.com/getlantern/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+//go:embed build/windows/icon.ico
+var trayIcon []byte
+
 var trayReady atomic.Bool
 
 func (a *App) startTray() {
 	go systray.Run(func() {
 		trayReady.Store(true)
+		systray.SetIcon(trayIcon)
 		systray.SetTitle("久坐提醒")
 		systray.SetTooltip("久坐提醒")
 		updateTrayState(a.Status().State)
@@ -28,6 +33,7 @@ func (a *App) startTray() {
 				case <-settingsItem.ClickedCh:
 					runtime.WindowShow(a.ctx)
 				case <-quitItem.ClickedCh:
+					a.requestQuit()
 					runtime.Quit(a.ctx)
 					return
 				}
