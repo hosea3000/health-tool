@@ -257,3 +257,51 @@ func TestTimelineRollsOverAtMidnight(t *testing.T) {
 		t.Fatalf("persisted file after midnight = %+v, want empty for new day", file)
 	}
 }
+
+func TestCountdownCRUDAndOrdering(t *testing.T) {
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.Local)
+	app := newApp(func() time.Time { return now }, func() {})
+
+	date := func(s string) domain.Rule { return domain.Rule{Type: domain.RuleDate, Target: s} }
+	if msg := app.AddCountdown("一周后", date("2026-08-19")); msg != "" {
+		t.Fatalf("add 一周后 failed: %s", msg)
+	}
+	if msg := app.AddCountdown("今天到期", date("2026-08-12")); msg != "" {
+		t.Fatalf("add 今天到期 failed: %s", msg)
+	}
+	if msg := app.AddCountdown("已过", date("2026-08-01")); msg != "" {
+		t.Fatalf("add 已过 failed: %s", msg)
+	}
+	if msg := app.AddCountdown("", domain.Rule{Type: domain.RuleMonthly, Day: 32}); msg == "" {
+		t.Fatal("invalid countdown should be rejected")
+	}
+
+	views := app.CountdownEvents()
+	if len(views) != 3 {
+		t.Fatalf("views = %d, want 3", len(views))
+	}
+	got := []string{views[0].Title, views[1].Title, views[2].Title}
+	want := []string{"今天到期", "一周后", "已过"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("order = %v, want %v", got, want)
+		}
+	}
+	if views[0].RemainingDays != 0 || views[2].RemainingDays != -11 {
+		t.Fatalf("remaining days = %d, %d; want 0, -11", views[0].RemainingDays, views[2].RemainingDays)
+	}
+
+	if msg := app.UpdateCountdown(views[1].ID, "改标题", date("2026-08-20")); msg != "" {
+		t.Fatalf("update failed: %s", msg)
+	}
+	if got := app.CountdownEvents()[1].Title; got != "改标题" {
+		t.Fatalf("updated title = %q, want 改标题", got)
+	}
+
+	if !app.DeleteCountdown(views[0].ID) {
+		t.Fatal("delete failed")
+	}
+	if got := len(app.CountdownEvents()); got != 2 {
+		t.Fatalf("after delete views = %d, want 2", got)
+	}
+}

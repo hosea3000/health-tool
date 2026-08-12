@@ -1,3 +1,30 @@
+export namespace domain {
+	
+	export class Rule {
+	    type: string;
+	    target?: string;
+	    day?: number;
+	    weekday?: number;
+	    phase?: string;
+	    anchor?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Rule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.target = source["target"];
+	        this.day = source["day"];
+	        this.weekday = source["weekday"];
+	        this.phase = source["phase"];
+	        this.anchor = source["anchor"];
+	    }
+	}
+
+}
+
 export namespace main {
 	
 	export class AppStatus {
@@ -19,6 +46,44 @@ export namespace main {
 	        this.restMinutes = source["restMinutes"];
 	        this.restRemainingSeconds = source["restRemainingSeconds"];
 	    }
+	}
+	export class CountdownView {
+	    id: string;
+	    title: string;
+	    rule: domain.Rule;
+	    nextDate: string;
+	    remainingDays: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CountdownView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.rule = this.convertValues(source["rule"], domain.Rule);
+	        this.nextDate = source["nextDate"];
+	        this.remainingDays = source["remainingDays"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Settings {
 	    reminderMinutes: number;

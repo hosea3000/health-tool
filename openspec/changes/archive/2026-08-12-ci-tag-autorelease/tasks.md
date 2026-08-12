@@ -13,6 +13,6 @@
 ## 3. 收尾
 
 - [x] 3.1 删除 `.goreleaser.yaml`（改用纯 GitHub Actions + `gh` CLI）
-- [ ] 3.2 推送 tag（如 `v0.1.1`）到远端，确认 GitHub Actions run 全绿
-- [ ] 3.3 检查 Release 产物完整：`health-tool.exe`、changelog
-- [ ] 3.4 抽查 exe 文件属性显示的版本号与 tag 一致
+- [x] 3.2 推送 tag（如 `v0.1.1`）到远端，确认 GitHub Actions run 全绿
+- [x] 3.3 检查 Release 产物完整：`health-tool.exe`、changelog
+- [x] 3.4 抽查 exe 文件属性显示的版本号与 tag 一致

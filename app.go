@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sort"
 	"sync"
@@ -26,6 +27,8 @@ type App struct {
 	timelinePath  string
 	currentDate   string
 	timeline      []TimelineEntry
+	countdownPath string
+	countdowns    []domain.CountdownEvent
 	quitRequested atomic.Bool
 }
 
@@ -41,6 +44,9 @@ func NewApp() *App {
 	app.settingsPath = path
 	if timelinePath, err := userTimelinePath(); err == nil {
 		app.timelinePath = timelinePath
+	}
+	if countdownPath, err := userCountdownPath(); err == nil {
+		app.countdownPath = countdownPath
 	}
 	app.notify, app.notifyStarted = newNotifiers()
 	return app
@@ -65,6 +71,7 @@ func (a *App) startup(ctx context.Context) {
 	a.mu.Lock()
 	a.currentDate = a.now().Format("2006-01-02")
 	a.loadTimelineLocked(a.now())
+	a.loadCountdownsLocked()
 	a.mu.Unlock()
 	var err error
 	a.stopInput, err = startInputMonitor(a.recordActivity)
@@ -179,6 +186,107 @@ func (a *App) SaveSettings(reminderMinutes int, restMinutes int) bool {
 	a.monitor.SetRestDuration(durationFromMinutes(restMinutes))
 	a.mu.Unlock()
 	return true
+}
+
+type CountdownView struct {
+	ID            string      `json:"id"`
+	Title         string      `json:"title"`
+	Rule          domain.Rule `json:"rule"`
+	NextDate      string      `json:"nextDate"`
+	RemainingDays int         `json:"remainingDays"`
+}
+
+func (a *App) CountdownEvents() []CountdownView {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	now := a.now()
+	views := make([]CountdownView, 0, len(a.countdowns))
+	for _, event := range a.countdowns {
+		next := event.Rule.NextOccurrence(now)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		remaining := int(next.Sub(today) / (24 * time.Hour))
+		views = append(views, CountdownView{
+			ID:            event.ID,
+			Title:         event.Title,
+			Rule:          event.Rule,
+			NextDate:      next.Format("2006-01-02"),
+			RemainingDays: remaining,
+		})
+	}
+	sort.SliceStable(views, func(i, j int) bool {
+		ri, rj := views[i].RemainingDays, views[j].RemainingDays
+		if (ri >= 0) != (rj >= 0) {
+			return ri >= 0
+		}
+		if ri < 0 {
+			return ri > rj
+		}
+		return ri < rj
+	})
+	return views
+}
+
+func (a *App) AddCountdown(title string, rule domain.Rule) string {
+	event := domain.CountdownEvent{ID: fmt.Sprintf("%d", a.now().UnixNano()), Title: title, Rule: rule}
+	if err := event.Validate(); err != nil {
+		return err.Error()
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.countdowns = append(a.countdowns, event)
+	a.persistCountdownsLocked()
+	return ""
+}
+
+func (a *App) UpdateCountdown(id string, title string, rule domain.Rule) string {
+	event := domain.CountdownEvent{ID: id, Title: title, Rule: rule}
+	if err := event.Validate(); err != nil {
+		return err.Error()
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := range a.countdowns {
+		if a.countdowns[i].ID == id {
+			a.countdowns[i] = event
+			a.persistCountdownsLocked()
+			return ""
+		}
+	}
+	return "event not found"
+}
+
+func (a *App) DeleteCountdown(id string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := range a.countdowns {
+		if a.countdowns[i].ID == id {
+			a.countdowns = append(a.countdowns[:i], a.countdowns[i+1:]...)
+			a.persistCountdownsLocked()
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) loadCountdownsLocked() {
+	if a.countdownPath == "" {
+		return
+	}
+	file, err := loadCountdownFile(a.countdownPath)
+	if err != nil {
+		return
+	}
+	a.countdowns = append([]domain.CountdownEvent(nil), file.Events...)
+}
+
+func (a *App) persistCountdownsLocked() {
+	if a.countdownPath == "" {
+		return
+	}
+	_ = saveCountdownFile(a.countdownPath, countdownFile{
+		SavedAt: a.now(),
+		Events:  append([]domain.CountdownEvent(nil), a.countdowns...),
+	})
 }
 
 func (a *App) recordActivity(activity domain.EffectiveActivity) {
