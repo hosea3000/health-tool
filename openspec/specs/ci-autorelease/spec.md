@@ -1,4 +1,10 @@
-## ADDED Requirements
+# CI Autorelease
+
+## Purpose
+
+当仓库推送 `v*` 格式的 git tag 时，自动触发 GitHub Actions 构建 Windows 产物并发布到 GitHub Release，无需人工介入。
+
+## Requirements
 
 ### Requirement: Tag 触发自动发布
 当仓库推送 `v*` 格式的 git tag 时，GitHub Actions SHALL 自动执行构建与发布流程，无需人工介入。

@@ -68,7 +68,6 @@ async function renderCards() {
         const card = document.createElement('article');
         card.className = 'tool-card';
         card.dataset.tool = countdownTool.id;
-        card.dataset.state = event.remainingDays < 0 ? 'passed' : 'future';
         card.setAttribute('role', 'button');
         card.tabIndex = 0;
         card.innerHTML = `

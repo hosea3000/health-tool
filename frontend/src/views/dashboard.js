@@ -22,7 +22,7 @@ export function renderDashboard({onOpenTool}) {
     const slots = {};
     for (const tool of Object.values(registry)) {
         const slot = document.createElement('div');
-        slot.className = 'card-slot';
+        slot.className = 'card-group';
         slot.dataset.toolSlot = tool.id;
         grid.appendChild(slot);
         slots[tool.id] = slot;
