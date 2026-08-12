@@ -9,13 +9,14 @@
 **Goals:**
 - 打 `v*` tag 自动发布：构建、版本注入、GitHub Release 全部自动化。
 - 版本号唯一来源是 git tag。
-- 发布产物含 exe 与 NSIS 安装器。
+- 发布产物为单 exe。
 - main 分支 push 触发构建验证（产物作为 Actions artifact，不发布）。
 
 **Non-Goals:**
 - 多平台矩阵发布（macOS/Linux 不在范围）。
 - 代码签名（Authenticode）与公证。
 - 分发到 Homebrew/Scoop/Docker 等额外渠道。
+- 生成 NSIS 安装器（`wails build -nsis` 依赖 makensis 不在 runner PATH，且单 exe 已满足使用场景）。
 - 生成独立 checksums.txt（GitHub 对每个 Release 资产自动附带 SHA256）。
 - 修改运行时代码或前端逻辑。
 
@@ -33,8 +34,8 @@ Wails 官方不支持从 Linux 交叉编译 Windows exe；本项目也只发布 
 **D3. 版本从 tag 写入 `wails.json` 的 `info.productVersion`**
 `{{.Info.ProductVersion}}` 模板唯一数据源是 `wails.json`。CI 中用 node 脚本 `TrimStart('v')` 后写入并序列化回 JSON，随后 `wails build` 自动注入 exe 与安装器。替代方案（`-ldflags -X main.version`）无法写入 Windows 文件属性，弃用。
 
-**D4. exe 与 NSIS 安装器直接作为 Release 资产上传**
-安装器由 `wails build -nsis` 产出为 `build/bin/*-installer.exe`（如 `health-tool-amd64-installer.exe`）。`gh release create` 一次性上传 exe 与安装器，无需归档打包。
+**D4. 只发布单 exe，不生成 NSIS 安装器**
+`wails build -nsis` 依赖 makensis（NSIS 编译工具），而 windows-latest runner 未将其加入 PATH，wails 静默跳过安装器生成导致发布失败。本项目是单平台小工具，Windows 10/11 普遍自带 WebView2 运行时，单 exe 已满足使用场景。直接 `wails build -clean` 产出 `build/bin/health-tool.exe`，`gh release create` 上传单个 exe。
 
 **D5. main 分支 push 走构建验证模式**
 `github.ref_type == 'branch'` 时只执行 `wails build` 并用 `actions/upload-artifact` 保存产物供人工检查，不创建 Release；`ref_type == 'tag'` 时执行 `gh release create` 发布。

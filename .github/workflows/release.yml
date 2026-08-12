@@ -43,7 +43,7 @@ jobs:
           node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('wails.json'));c.info={...c.info,productVersion:'$v'};fs.writeFileSync('wails.json',JSON.stringify(c,null,2));"
 
       - name: Wails build
-        run: wails build -clean -nsis
+        run: wails build -clean
 
       - name: Create Release
         if: github.ref_type == 'tag'
@@ -51,14 +51,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME build/bin/health-tool.exe build/bin/*-installer.exe --generate-notes
+          gh release create $env:GITHUB_REF_NAME build/bin/health-tool.exe --generate-notes
 
       - name: Upload artifacts
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
         with:
           name: health-tool-dist
-          path: |
-            build/bin/health-tool.exe
-            build/bin/*-installer.exe
+          path: build/bin/health-tool.exe
           if-no-files-found: warn

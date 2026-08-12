@@ -19,25 +19,25 @@ main 分支的 push SHALL 触发构建流程并将产物保存为 Actions artifa
 - **THEN** 流水线执行 `wails build`，产物上传为 Actions artifact，不创建 Release
 
 ### Requirement: 版本号来源于 tag
-发布产物的 Windows 文件属性与 NSIS 安装器版本号 SHALL 取自当前 tag，去除前导 `v` 后使用。
+发布产物的 Windows 文件属性 SHALL 取自当前 tag，去除前导 `v` 后使用。
 
 #### Scenario: 版本注入
 - **WHEN** 构建开始时存在 tag `v2.1.0`
-- **THEN** `wails.json` 的 `info.productVersion` 被写为 `2.1.0`，且 exe 文件属性与安装器显示的版本号均为 `2.1.0`
+- **THEN** `wails.json` 的 `info.productVersion` 被写为 `2.1.0`，且 exe 文件属性显示的版本号为 `2.1.0`
 
 ### Requirement: 发布产物完整性
-tag 触发的每个 Release SHALL 包含以下资产：exe 与 NSIS 安装器；changelog SHALL 由 GitHub 原生生成（`gh release create --generate-notes`）。
+tag 触发的每个 Release SHALL 包含以下资产：exe；changelog SHALL 由 GitHub 原生生成（`gh release create --generate-notes`）。
 
 #### Scenario: 发布成功
 - **WHEN** `gh release create` 完成发布
-- **THEN** Release 中包含 `health-tool.exe` 与 `*-installer.exe`，并显示 GitHub 生成的 changelog
+- **THEN** Release 中包含 `health-tool.exe`，并显示 GitHub 生成的 changelog
 
 ### Requirement: 构建产物必须由 wails build 生成
 发布所用的二进制 MUST 由 `wails build` 产出（含前端编译与资源注入），SHALL NOT 以原始 `go build` 替代。
 
 #### Scenario: 构建流程
 - **WHEN** 流水线执行构建步骤
-- **THEN** 实际执行命令为 `wails build -clean -nsis`，产物输出到 `build/bin/`
+- **THEN** 实际执行命令为 `wails build -clean`，产物输出到 `build/bin/`
 
 ### Requirement: 权限要求
 工作流 SHALL 声明足够的 `contents: write` 权限以创建 GitHub Release。
