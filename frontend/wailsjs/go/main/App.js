@@ -14,8 +14,16 @@ export function DeleteCountdown(arg1) {
   return window['go']['main']['App']['DeleteCountdown'](arg1);
 }
 
+export function GetCardOrder() {
+  return window['go']['main']['App']['GetCardOrder']();
+}
+
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
+}
+
+export function SaveCardOrder(arg1) {
+  return window['go']['main']['App']['SaveCardOrder'](arg1);
 }
 
 export function SaveSettings(arg1, arg2) {

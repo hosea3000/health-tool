@@ -27,9 +27,11 @@ type App struct {
 	timelinePath  string
 	currentDate   string
 	timeline      []TimelineEntry
-	countdownPath string
-	countdowns    []domain.CountdownEvent
-	quitRequested atomic.Bool
+	countdownPath   string
+	countdowns      []domain.CountdownEvent
+	cardOrderPath   string
+	cardOrder       []string
+	quitRequested   atomic.Bool
 }
 
 func NewApp() *App {
@@ -47,6 +49,9 @@ func NewApp() *App {
 	}
 	if countdownPath, err := userCountdownPath(); err == nil {
 		app.countdownPath = countdownPath
+	}
+	if cardOrderPath, err := userCardOrderPath(); err == nil {
+		app.cardOrderPath = cardOrderPath
 	}
 	app.notify, app.notifyStarted = newNotifiers()
 	return app
@@ -72,6 +77,7 @@ func (a *App) startup(ctx context.Context) {
 	a.currentDate = a.now().Format("2006-01-02")
 	a.loadTimelineLocked(a.now())
 	a.loadCountdownsLocked()
+	a.loadCardOrderLocked()
 	a.mu.Unlock()
 	var err error
 	a.stopInput, err = startInputMonitor(a.recordActivity)
@@ -277,6 +283,33 @@ func (a *App) loadCountdownsLocked() {
 		return
 	}
 	a.countdowns = append([]domain.CountdownEvent(nil), file.Events...)
+}
+
+func (a *App) GetCardOrder() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string{}, a.cardOrder...)
+}
+
+func (a *App) SaveCardOrder(order []string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cardOrderPath == "" || saveCardOrderFile(a.cardOrderPath, order) != nil {
+		return false
+	}
+	a.cardOrder = append([]string(nil), order...)
+	return true
+}
+
+func (a *App) loadCardOrderLocked() {
+	if a.cardOrderPath == "" {
+		return
+	}
+	order, err := loadCardOrderFile(a.cardOrderPath)
+	if err != nil {
+		return
+	}
+	a.cardOrder = append([]string(nil), order...)
 }
 
 func (a *App) persistCountdownsLocked() {

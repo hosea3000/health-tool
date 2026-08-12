@@ -79,10 +79,10 @@ async function renderCards() {
     const status = await api.status();
     const v = derive(status);
     const card = document.createElement('article');
-    card.className = 'tool-card';
-    card.dataset.tool = reminderTool.id;
-    card.dataset.state = status.state;
-    card.setAttribute('role', 'button');
+        card.className = 'tool-card';
+        card.dataset.tool = reminderTool.id;
+        card.dataset.card = reminderTool.id;
+        card.setAttribute('role', 'button');
     card.tabIndex = 0;
     card.innerHTML = `
         <div class="tool-card-top"><span class="tool-card-kicker">久坐提醒</span><span class="tool-card-status">${labels[status.state] ?? status.state}</span></div>

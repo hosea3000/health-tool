@@ -9,7 +9,11 @@ export function CountdownEvents():Promise<Array<main.CountdownView>>;
 
 export function DeleteCountdown(arg1:string):Promise<boolean>;
 
+export function GetCardOrder():Promise<Array<string>>;
+
 export function GetSettings():Promise<main.Settings>;
+
+export function SaveCardOrder(arg1:Array<string>):Promise<boolean>;
 
 export function SaveSettings(arg1:number,arg2:number):Promise<boolean>;
 

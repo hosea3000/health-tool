@@ -68,6 +68,7 @@ async function renderCards() {
         const card = document.createElement('article');
         card.className = 'tool-card';
         card.dataset.tool = countdownTool.id;
+        card.dataset.card = `${countdownTool.id}:${event.id}`;
         card.setAttribute('role', 'button');
         card.tabIndex = 0;
         card.innerHTML = `

@@ -305,3 +305,26 @@ func TestCountdownCRUDAndOrdering(t *testing.T) {
 		t.Fatalf("after delete views = %d, want 2", got)
 	}
 }
+
+func TestCardOrderSaveLoadAndRoundTrip(t *testing.T) {
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	app.cardOrderPath = filepath.Join(t.TempDir(), "card_order.json")
+
+	if got := app.GetCardOrder(); len(got) != 0 {
+		t.Fatalf("initial order = %v, want empty", got)
+	}
+	order := []string{"countdown:2", "reminder", "countdown:1"}
+	if !app.SaveCardOrder(order) {
+		t.Fatal("save failed")
+	}
+	if got := app.GetCardOrder(); len(got) != 3 || got[0] != "countdown:2" || got[2] != "countdown:1" {
+		t.Fatalf("order = %v, want %v", got, order)
+	}
+
+	app2 := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	app2.cardOrderPath = app.cardOrderPath
+	app2.loadCardOrderLocked()
+	if got := app2.GetCardOrder(); len(got) != 3 || got[0] != "countdown:2" {
+		t.Fatalf("round-trip order = %v, want %v", got, order)
+	}
+}
