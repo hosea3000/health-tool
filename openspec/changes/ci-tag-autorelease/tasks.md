@@ -4,7 +4,7 @@
 
 ## 2. 发布工作流
 
-- [x] 2.1 修改 `.github/workflows/release.yml`：`on.push.tags: ["v*"]` 仅 tag 触发，`permissions.contents: write`，单 job 跑在 `windows-latest`
+- [x] 2.1 修改 `.github/workflows/release.yml`：`on.push.tags: ["v*"]` 仅 tag 触发，`permissions.contents: write`，单 job 跑在 `ubuntu-latest`（`wails build -platform windows/amd64` 交叉编译）
 - [x] 2.2 配置步骤：`actions/checkout@v4`（`fetch-depth: 0`）→ `actions/setup-go@v5` → `actions/setup-node@v4`
 - [x] 2.3 添加"从 tag 提取版本写入 wails.json"步骤（PowerShell/node 脚本，`TrimStart('v')` 后写 `info.productVersion`）
 - [x] 2.4 添加 `wails build -clean` 构建步骤（前置：`go install` 安装 wails CLI v2.13.0）

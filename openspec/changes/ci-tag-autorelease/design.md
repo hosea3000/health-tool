@@ -23,8 +23,8 @@
 
 ## Decisions
 
-**D1. 单 `windows-latest` job，不跨平台交叉编译**
-Wails 官方不支持从 Linux 交叉编译 Windows exe；本项目也只发布 Windows。→ 在 Windows runner 上原生构建。
+**D1. 单 `ubuntu-latest` job + `-platform windows/amd64` 交叉编译**
+项目为 Windows 单平台发布，但本地已验证 Wails 交叉编译走**纯 Go 路径**（`CGO_ENABLED=0 GOOS=windows` 直接产出有效 PE32+ exe，无需 mingw-w64）。故 CI 用 `ubuntu-latest` 执行 `wails build -clean -platform windows/amd64`：构建确定性高且 Linux runner 计费远低于 Windows runner。若未来出现依赖 cgo 的库导致交叉编译失败，再回退到 `windows-latest` 原生构建。
 
 **D2. 不使用 GoReleaser，纯 GitHub Actions + `gh` CLI**
 曾尝试 GoReleaser，但本项目是单平台、单产物，用不上其核心能力（多平台矩阵、多渠道分发），反而引入 `builder: prebuilt` 为 Pro 专属、go builder + post hook 覆盖 hack、`wails build` 污染 git 状态需恢复等额外复杂度。放弃 GoReleaser，改用 windows-latest **预装的 `gh` CLI**：

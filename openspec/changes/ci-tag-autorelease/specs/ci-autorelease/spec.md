@@ -5,7 +5,7 @@
 
 #### Scenario: 推送新版本 tag
 - **WHEN** 推送 `v1.2.3` 格式的 tag
-- **THEN** 流水线在 `windows-latest` runner 上执行构建，并以该 tag 作为版本号发布到 GitHub Release
+- **THEN** 流水线在 `ubuntu-latest` runner 上交叉编译 Windows 产物，并以该 tag 作为版本号发布到 GitHub Release
 
 #### Scenario: 推送非版本 tag
 - **WHEN** 推送的 tag 不以 `v` 开头
