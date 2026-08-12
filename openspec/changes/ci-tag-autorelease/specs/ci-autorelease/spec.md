@@ -11,12 +11,9 @@
 - **WHEN** 推送的 tag 不以 `v` 开头
 - **THEN** SHALL NOT 触发发布流水线
 
-### Requirement: main 分支触发构建验证
-main 分支的 push SHALL 触发构建流程并将产物保存为 Actions artifact 供验证，SHALL NOT 创建 GitHub Release。
-
-#### Scenario: main 分支提交
-- **WHEN** 向 main 分支推送代码
-- **THEN** 流水线执行 `wails build`，产物上传为 Actions artifact，不创建 Release
+#### Scenario: 分支 push 不触发
+- **WHEN** 向任何分支（含 main）推送提交
+- **THEN** SHALL NOT 触发发布流水线
 
 ### Requirement: 版本号来源于 tag
 发布产物的 Windows 文件属性 SHALL 取自当前 tag，去除前导 `v` 后使用。

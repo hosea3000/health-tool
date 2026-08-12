@@ -2,8 +2,6 @@ name: release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
 
@@ -35,28 +33,15 @@ jobs:
       - name: Set version from tag
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_TYPE -eq "tag") {
-            $v = $env:GITHUB_REF_NAME.TrimStart('v')
-          } else {
-            $v = $env:GITHUB_SHA.Substring(0, 8)
-          }
+          $v = $env:GITHUB_REF_NAME.TrimStart('v')
           node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('wails.json'));c.info={...c.info,productVersion:'$v'};fs.writeFileSync('wails.json',JSON.stringify(c,null,2));"
 
       - name: Wails build
         run: wails build -clean
 
       - name: Create Release
-        if: github.ref_type == 'tag'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create $env:GITHUB_REF_NAME build/bin/health-tool.exe --generate-notes
-
-      - name: Upload artifacts
-        if: github.ref_type != 'tag'
-        uses: actions/upload-artifact@v4
-        with:
-          name: health-tool-dist
-          path: build/bin/health-tool.exe
-          if-no-files-found: warn
