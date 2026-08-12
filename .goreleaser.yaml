@@ -1,0 +1,24 @@
+version: 2
+
+project_name: health-tool
+
+builds:
+  - id: health-tool
+    builder: go
+    goos: [windows]
+    goarch: [amd64]
+    binary: health-tool
+    hooks:
+      post:
+        - 'cp build/bin/health-tool.exe "{{ .Path }}"'
+
+archives:
+  - id: zip
+    formats: [zip]
+
+release:
+  github:
+    owner: hosea3000
+    name: health-tool
+  extra_files:
+    - glob: build/bin/*-installer.exe

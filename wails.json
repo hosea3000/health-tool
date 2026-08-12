@@ -7,7 +7,13 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "hexiang",
+    "name": "hosea",
     "email": "hosea@sijiu.com"
+  },
+  "info": {
+    "companyName": "hosea",
+    "productName": "health-tool",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright (c) hosea"
   }
 }

@@ -1,0 +1,56 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.25
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+
+      - name: Set version from tag
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $v = $env:GITHUB_REF_NAME.TrimStart('v')
+          } else {
+            $v = $env:GITHUB_SHA.Substring(0, 8)
+          }
+          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('wails.json'));c.info={...c.info,productVersion:'$v'};fs.writeFileSync('wails.json',JSON.stringify(c,null,2));"
+
+      - name: Wails build
+        run: wails build -clean -nsis
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: ${{ github.ref_type == 'tag' && 'release --clean' || 'release --clean --snapshot' }}
+          upload-artifacts: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
