@@ -32,7 +32,7 @@ document.querySelector('#app').innerHTML = `
                 <article class="insight-card insight-teal"><span>03</span><strong>只在本地</strong><p>不记录输入内容、坐标或窗口信息，数据只为这一次提醒服务。</p></article>
             </section>
             <section class="timeline-section" aria-labelledby="timeline-title">
-                <div class="section-heading"><div><p class="eyebrow">今天的节奏</p><h2 id="timeline-title">工作与休息记录</h2></div><span class="section-note">仅保留本次运行记录</span></div>
+                <div class="section-heading"><div><p class="eyebrow">今天的节奏</p><h2 id="timeline-title">工作与休息记录</h2></div><span class="section-note" id="work-total">工作时长 0小时00分00秒</span><span class="section-note">仅保留当天记录</span></div>
                 <div class="timeline-list" id="timeline-list"></div>
             </section>
         </main>
@@ -90,6 +90,14 @@ const settingRestMinutes = document.getElementById('setting-rest-minutes');
 const settingRestRange = document.getElementById('setting-rest-range');
 const settingsError = document.getElementById('settings-error');
 const timelineList = document.getElementById('timeline-list');
+const workTotalElement = document.getElementById('work-total');
+
+function formatTotalDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainder = seconds % 60;
+    return `${hours}小时${minutes.toString().padStart(2, '0')}分${remainder.toString().padStart(2, '0')}秒`;
+}
 
 function formatElapsed(seconds) {
     const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -133,6 +141,8 @@ async function refreshStatus() {
     trackEndLabelElement.textContent = resting ? `休息结束 / ${current.restMinutes} 分钟` : `起身提醒 / ${current.reminderMinutes} 分钟`;
     heroElement.dataset.state = current.state;
     progressElement.style.width = `${Math.min(Math.max(progressSeconds, 0) / totalSeconds, 1) * 100}%`;
+    const workSeconds = timeline.filter((entry) => entry.kind === 'working').reduce((sum, entry) => sum + entry.durationSeconds, 0);
+    workTotalElement.textContent = `工作时长 ${formatTotalDuration(workSeconds)}`;
     renderTimeline(timeline);
 }
 

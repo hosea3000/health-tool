@@ -23,6 +23,8 @@ type App struct {
 	lastTick      time.Time
 	settings      Settings
 	settingsPath  string
+	timelinePath  string
+	currentDate   string
 	timeline      []TimelineEntry
 	quitRequested atomic.Bool
 }
@@ -37,6 +39,9 @@ func NewApp() *App {
 	}
 	app := newAppWithSettings(time.Now, func() {}, settings)
 	app.settingsPath = path
+	if timelinePath, err := userTimelinePath(); err == nil {
+		app.timelinePath = timelinePath
+	}
 	app.notify, app.notifyStarted = newNotifiers()
 	return app
 }
@@ -57,6 +62,10 @@ func newAppWithSettings(now func() time.Time, notify func(), settings Settings) 
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.mu.Lock()
+	a.currentDate = a.now().Format("2006-01-02")
+	a.loadTimelineLocked(a.now())
+	a.mu.Unlock()
 	var err error
 	a.stopInput, err = startInputMonitor(a.recordActivity)
 	if err != nil {
@@ -72,6 +81,14 @@ func (a *App) shutdown(_ context.Context) {
 		a.stopInput()
 	}
 	stopTray()
+	a.mu.Lock()
+	if len(a.timeline) > 0 && a.timeline[len(a.timeline)-1].EndedAt == nil {
+		last := &a.timeline[len(a.timeline)-1]
+		endedAt := a.now()
+		last.EndedAt = &endedAt
+	}
+	a.persistTimelineLocked(a.now())
+	a.mu.Unlock()
 }
 
 func (a *App) beforeClose(ctx context.Context) bool {
@@ -196,6 +213,7 @@ func (a *App) tick() {
 		case <-ticker.C:
 			a.mu.Lock()
 			now := a.now()
+			a.rolloverLocked(now)
 			reminder := false
 			if workstationLocked() || (a.monitor.State() == domain.Working && now.Sub(a.lastTick) >= 5*time.Minute) {
 				before := a.monitor.State()
@@ -229,6 +247,45 @@ func (a *App) advanceLocked(now time.Time) bool {
 	return false
 }
 
+func (a *App) rolloverLocked(now time.Time) {
+	if now.Format("2006-01-02") == a.currentDate {
+		return
+	}
+	a.currentDate = now.Format("2006-01-02")
+	a.timeline = nil
+	a.persistTimelineLocked(now)
+}
+
+func (a *App) loadTimelineLocked(now time.Time) {
+	if a.timelinePath == "" {
+		return
+	}
+	file, err := loadTimelineFile(a.timelinePath)
+	if err != nil {
+		return
+	}
+	if file.Date != now.Format("2006-01-02") {
+		return
+	}
+	a.timeline = append([]TimelineEntry(nil), file.Entries...)
+	if len(a.timeline) > 0 && a.timeline[len(a.timeline)-1].EndedAt == nil {
+		last := &a.timeline[len(a.timeline)-1]
+		savedAt := file.SavedAt
+		last.EndedAt = &savedAt
+	}
+}
+
+func (a *App) persistTimelineLocked(now time.Time) {
+	if a.timelinePath == "" {
+		return
+	}
+	_ = saveTimelineFile(a.timelinePath, timelineFile{
+		Date:    now.Format("2006-01-02"),
+		SavedAt: now,
+		Entries: append([]TimelineEntry(nil), a.timeline...),
+	})
+}
+
 func (a *App) recordTimelineTransitionLocked(before, after domain.State, at time.Time) {
 	if before == after {
 		return
@@ -243,6 +300,7 @@ func (a *App) recordTimelineTransitionLocked(before, after domain.State, at time
 	if after == domain.Working || after == domain.Resting || after == domain.IdlePaused {
 		a.timeline = append(a.timeline, TimelineEntry{Kind: after.String(), StartedAt: at})
 	}
+	a.persistTimelineLocked(at)
 }
 
 func (a *App) notifyReminder(restMinutes int) {

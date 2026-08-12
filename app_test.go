@@ -154,3 +154,106 @@ func TestAppAllowsRequestedQuit(t *testing.T) {
 		t.Fatal("requested quit was intercepted as a window hide")
 	}
 }
+
+func TestTimelineRestoresSameDayRecords(t *testing.T) {
+	now := time.Unix(1000000, 0)
+	path := filepath.Join(t.TempDir(), "timeline.json")
+	savedAt := now.Add(time.Minute)
+	_ = saveTimelineFile(path, timelineFile{
+		Date:    now.Format("2006-01-02"),
+		SavedAt: savedAt,
+		Entries: []TimelineEntry{
+			{Kind: "working", StartedAt: now, EndedAt: &now},
+			{Kind: "working", StartedAt: now.Add(time.Minute)},
+		},
+	})
+	app := newApp(func() time.Time { return now }, func() {})
+	app.timelinePath = path
+
+	app.loadTimelineLocked(now)
+	entries := app.Timeline()
+	if len(entries) != 2 {
+		t.Fatalf("restored entries = %d, want 2", len(entries))
+	}
+	if entries[1].EndedAt == nil || !entries[1].EndedAt.Equal(savedAt) {
+		t.Fatalf("open record should be closed at savedAt, got %+v", entries[1])
+	}
+}
+
+func TestTimelineIgnoresStaleDayFile(t *testing.T) {
+	now := time.Unix(1000000, 0)
+	path := filepath.Join(t.TempDir(), "timeline.json")
+	_ = saveTimelineFile(path, timelineFile{
+		Date:    now.AddDate(0, 0, -1).Format("2006-01-02"),
+		SavedAt: now,
+		Entries: []TimelineEntry{{Kind: "working", StartedAt: now}},
+	})
+	app := newApp(func() time.Time { return now }, func() {})
+	app.timelinePath = path
+
+	app.loadTimelineLocked(now)
+	if entries := app.Timeline(); len(entries) != 0 {
+		t.Fatalf("stale-day entries = %d, want empty", len(entries))
+	}
+}
+
+func TestTimelinePersistsOnTransition(t *testing.T) {
+	start := time.Unix(0, 0)
+	path := filepath.Join(t.TempDir(), "timeline.json")
+	app := newApp(func() time.Time { return start }, func() {})
+	app.timelinePath = path
+
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start.Add(time.Minute)})
+
+	file, err := loadTimelineFile(path)
+	if err != nil {
+		t.Fatalf("load persisted timeline: %v", err)
+	}
+	if len(file.Entries) != 1 || file.Entries[0].Kind != "working" || file.Entries[0].EndedAt != nil {
+		t.Fatalf("persisted entries = %+v, want one open working record", file.Entries)
+	}
+}
+
+func TestTimelineShutdownClosesOpenRecord(t *testing.T) {
+	start := time.Unix(0, 0)
+	path := filepath.Join(t.TempDir(), "timeline.json")
+	now := start
+	app := newApp(func() time.Time { return now }, func() {})
+	app.timelinePath = path
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start.Add(time.Minute)})
+
+	now = start.Add(2 * time.Minute)
+	app.shutdown(context.Background())
+
+	file, err := loadTimelineFile(path)
+	if err != nil {
+		t.Fatalf("load persisted timeline: %v", err)
+	}
+	if len(file.Entries) != 1 || file.Entries[0].EndedAt == nil || !file.Entries[0].EndedAt.Equal(now) {
+		t.Fatalf("persisted entries = %+v, want open record closed at shutdown", file.Entries)
+	}
+}
+
+func TestTimelineRollsOverAtMidnight(t *testing.T) {
+	start := time.Unix(0, 0)
+	path := filepath.Join(t.TempDir(), "timeline.json")
+	now := start
+	app := newApp(func() time.Time { return now }, func() {})
+	app.timelinePath = path
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start.Add(time.Minute)})
+	app.currentDate = now.Format("2006-01-02")
+
+	now = start.Add(24 * time.Hour)
+	app.rolloverLocked(now)
+
+	if entries := app.Timeline(); len(entries) != 0 {
+		t.Fatalf("entries after midnight = %d, want empty", len(entries))
+	}
+	file, err := loadTimelineFile(path)
+	if err != nil {
+		t.Fatalf("load persisted timeline: %v", err)
+	}
+	if len(file.Entries) != 0 || file.Date != now.Format("2006-01-02") {
+		t.Fatalf("persisted file after midnight = %+v, want empty for new day", file)
+	}
+}
