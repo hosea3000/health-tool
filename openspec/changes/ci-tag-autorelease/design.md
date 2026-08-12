@@ -7,14 +7,16 @@
 ## Goals / Non-Goals
 
 **Goals:**
-- 打 `v*` tag 自动发布：构建、版本注入、changelog、checksums、GitHub Release 全部自动化。
+- 打 `v*` tag 自动发布：构建、版本注入、GitHub Release 全部自动化。
 - 版本号唯一来源是 git tag。
-- 发布产物含 exe 归档与 NSIS 安装器。
+- 发布产物含 exe 与 NSIS 安装器。
+- main 分支 push 触发构建验证（产物作为 Actions artifact，不发布）。
 
 **Non-Goals:**
 - 多平台矩阵发布（macOS/Linux 不在范围）。
 - 代码签名（Authenticode）与公证。
 - 分发到 Homebrew/Scoop/Docker 等额外渠道。
+- 生成独立 checksums.txt（GitHub 对每个 Release 资产自动附带 SHA256）。
 - 修改运行时代码或前端逻辑。
 
 ## Decisions
@@ -22,27 +24,27 @@
 **D1. 单 `windows-latest` job，不跨平台交叉编译**
 Wails 官方不支持从 Linux 交叉编译 Windows exe；本项目也只发布 Windows。→ 在 Windows runner 上原生构建。
 
-**D2. GoReleaser 使用 Go builder + post hook 覆盖产物**
-`builder: prebuilt` 是 GoReleaser **Pro 专属**功能，开源版不可用（YAML 直接报 `field prebuilt not found`），弃用。
-开源版采用：`builder: go`（`goos: windows`、`goarch: amd64`）正常编译，随后 **post hook** 用 `wails build` 的真实产物覆盖 GoReleaser 的输出：`cp build/bin/health-tool.exe "{{ .Path }}"`。已实测验证：覆盖后的 exe 正确进入 zip 与 `checksums.txt`。
-前提：真实项目 `main.go` 有 `//go:embed all:frontend/dist`，go build 需 `frontend/dist` 存在 —— CI 中先跑 `wails build` 生成它，再跑 goreleaser。
+**D2. 不使用 GoReleaser，纯 GitHub Actions + `gh` CLI**
+曾尝试 GoReleaser，但本项目是单平台、单产物，用不上其核心能力（多平台矩阵、多渠道分发），反而引入 `builder: prebuilt` 为 Pro 专属、go builder + post hook 覆盖 hack、`wails build` 污染 git 状态需恢复等额外复杂度。放弃 GoReleaser，改用 windows-latest **预装的 `gh` CLI**：
+- `gh release create <tag> 产物... --generate-notes` 创建 Release 并上传产物；
+- changelog 由 GitHub 原生生成（基于两次 release 之间的 PR/commit）；
+- 每个资产 GitHub 自动附带 SHA256。
 
 **D3. 版本从 tag 写入 `wails.json` 的 `info.productVersion`**
 `{{.Info.ProductVersion}}` 模板唯一数据源是 `wails.json`。CI 中用 node 脚本 `TrimStart('v')` 后写入并序列化回 JSON，随后 `wails build` 自动注入 exe 与安装器。替代方案（`-ldflags -X main.version`）无法写入 Windows 文件属性，弃用。
 
-**D4. NSIS 安装器作为 `extra_files` 上传，不进 archive**
-安装器由 `wails build -nsis` 产出为 `build/bin/*-installer.exe`（如 `health-tool-amd64-installer.exe`）。GoReleaser 的 archive 只归档构建二进制；安装器用 `release.extra_files` glob 附带上传，避免多文件冲突。
+**D4. exe 与 NSIS 安装器直接作为 Release 资产上传**
+安装器由 `wails build -nsis` 产出为 `build/bin/*-installer.exe`（如 `health-tool-amd64-installer.exe`）。`gh release create` 一次性上传 exe 与安装器，无需归档打包。
 
-**D5. 归档格式用 zip**
-单 exe 直接作为 Release 资产会被浏览器/杀软误伤，zip 更稳妥，且为 checksums 提供清晰入口。
+**D5. main 分支 push 走构建验证模式**
+`github.ref_type == 'branch'` 时只执行 `wails build` 并用 `actions/upload-artifact` 保存产物供人工检查，不创建 Release；`ref_type == 'tag'` 时执行 `gh release create` 发布。
 
 ## Risks / Trade-offs
 
-- [`goreleaser release --clean` 清空 `dist/` 但不影响 `build/bin/`] → prebuilt 产物路径在 `build/bin/`，生命周期无冲突。
-- [Wails CLI 版本漂移导致构建失败] → 不固定 CLI 安装版本，失败即红；后续可按需 pin。
+- [`wails build` 会修改已跟踪文件（wailsjs 绑定、NSIS 模板、go.mod）] → 本方案不检查 git 状态（`gh` CLI 不校验 dirty），无需恢复；构建后直接上传产物。
+- [Wails CLI 版本漂移导致构建失败] → `go install` 固定 `@v2.13.0`，与项目依赖一致。
 - [`frontend/dist` 被 gitignore，CI 需要网络安装 npm 依赖] → wails.json 已配置 `frontend:build`，`wails build` 自动执行；npm 源需在 CI 可达。
-- [Changelog 质量依赖 commit message 规范] → 当前仓库 commit 为中文自由格式，changelog 将按 commit 原样聚合，后续可引入 conventional commits 增强。
-- [prebuilt builder 的二进制须与 `goos`/`goarch` 声明一致] → 本方案改用 go builder + post hook 覆盖，配置固定 `windows/amd64`，与 `wails build` 默认产物一致。
+- [changelog 依赖 GitHub 的 PR/commit 生成] → 首次发布会列出 tag 前全部提交，后续只列两次 release 之间；属 GitHub 原生行为，可接受。
 
 ## Migration Plan
 

@@ -45,19 +45,13 @@ jobs:
       - name: Wails build
         run: wails build -clean -nsis
 
-      - name: Restore generated files
-        run: |
-          git checkout -- .
-          git clean -fd build/windows/installer/tmp
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: ${{ github.ref_type == 'tag' && 'release --clean' || 'release --clean --snapshot' }}
+      - name: Create Release
+        if: github.ref_type == 'tag'
+        shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME build/bin/health-tool.exe build/bin/*-installer.exe --generate-notes
 
       - name: Upload artifacts
         if: github.ref_type != 'tag'
@@ -65,7 +59,6 @@ jobs:
         with:
           name: health-tool-dist
           path: |
-            dist/*.zip
-            dist/*checksums*
+            build/bin/health-tool.exe
             build/bin/*-installer.exe
           if-no-files-found: warn
