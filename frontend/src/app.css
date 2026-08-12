@@ -44,6 +44,7 @@
 .tool-card-kicker { flex: 0 0 auto; color: #ff4d8b; font-size: 12px; font-weight: 600; letter-spacing: 1.5px; }
 .tool-card-status { min-width: 0; overflow: hidden; color: #0a0a0a; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .tool-card-value { margin: 20px 0 24px; color: #0a0a0a; font-family: "Arial Rounded MT Bold", "Segoe UI", sans-serif; font-size: clamp(48px, 7vw, 72px); font-weight: 500; letter-spacing: -2px; line-height: 1; font-variant-numeric: tabular-nums; }
+.tool-card-unit { font-size: 0.35em; letter-spacing: 0; }
 .tool-card-track { position: relative; height: 8px; border-radius: 99px; background: #f0f0f0; }
 .tool-card-track .track-progress { position: absolute; top: 0; left: 0; }
 .tool-card[data-state="waiting"] .track-progress, .tool-card[data-state="idle-paused"] .track-progress, .tool-card[data-state="resting"] .track-progress { background: #b8a4ed; }

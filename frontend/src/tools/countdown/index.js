@@ -61,6 +61,12 @@ function weekOptions(selected) {
     return WEEKDAYS.map((name, i) => `<option value="${i}" ${i === selected ? 'selected' : ''}>${name}</option>`).join('');
 }
 
+function cardValueHTML(event) {
+    const days = event.remainingDays;
+    if (days === 0) return '今天';
+    return `${Math.abs(days)}<span class="tool-card-unit">天</span>`;
+}
+
 async function renderCards() {
     const events = await api.list();
     return events.map((event) => {
@@ -73,7 +79,7 @@ async function renderCards() {
         card.tabIndex = 0;
         card.innerHTML = `
             <div class="tool-card-top"><span class="tool-card-kicker">倒数日</span><span class="tool-card-status">${escapeHtml(event.title)}</span></div>
-            <div class="tool-card-value">${view.value}</div>
+            <div class="tool-card-value">${cardValueHTML(event)}</div>
             <div class="tool-card-meta"><span>${ruleText(event.rule)}</span><span>${view.nextLabel}</span></div>
         `;
         return card;
