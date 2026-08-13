@@ -63,7 +63,7 @@ function weekOptions(selected) {
 
 function cardValueHTML(event) {
     const days = event.remainingDays;
-    if (days === 0) return '今天';
+    if (days === 0) return '<span class="tool-card-today">✦ 今天 ✦</span>';
     return `${Math.abs(days)}<span class="tool-card-unit">天</span>`;
 }
 
