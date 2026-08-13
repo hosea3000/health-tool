@@ -21,6 +21,15 @@
 .settings-toggle { padding: 6px 10px; border: 0; border-radius: 8px; background: #f5f0e0; color: #0a0a0a; cursor: pointer; font: inherit; font-size: 12px; }
 .settings-toggle:hover { background: #ffb084; }
 
+.tool-menu { position: relative; }
+.tool-menu-toggle { list-style: none; padding: 6px 12px; border: 0; border-radius: 8px; background: #f5f0e0; color: #0a0a0a; cursor: pointer; font: inherit; font-size: 12px; }
+.tool-menu-toggle:hover { background: #ffb084; }
+.tool-menu-toggle::-webkit-details-marker { display: none; }
+.tool-menu-toggle::marker { content: ''; }
+.tool-menu-list { position: absolute; right: 0; top: calc(100% + 8px); margin: 0; padding: 6px; list-style: none; background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; box-shadow: 0 10px 24px #0a0a0a14; min-width: 160px; z-index: 10; }
+.tool-menu-item { display: block; width: 100%; padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: #0a0a0a; cursor: pointer; font: inherit; font-size: 14px; text-align: left; }
+.tool-menu-item:hover { background: #f5f0e0; }
+
 .dashboard { max-width: 1240px; margin: 0 auto; padding: 48px; }
 .dashboard-heading { margin-bottom: 32px; }
 .dashboard-heading h1 { margin: 12px 0 0; font-size: clamp(40px, 5vw, 56px); }
@@ -37,9 +46,6 @@
 .tool-card.drop-before { box-shadow: 0 -3px 0 0 #ff4d8b; }
 .tool-card.drop-after { box-shadow: 0 3px 0 0 #ff4d8b; }
 .tool-card:hover { border-color: #ff4d8b; }
-.tool-card-empty { border-style: dashed; border-color: #d9d2c4; box-shadow: none; }
-.tool-card-empty:hover { border-color: #ff4d8b; }
-.tool-card-empty .tool-card-value { color: #d9d2c4; }
 .tool-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f0f0f0; }
 .tool-card-head-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .counter-card-add { flex: 0 0 auto; position: relative; display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 50%; background: #ff4d8b; color: #fff; cursor: pointer; font-size: 18px; line-height: 1; }

@@ -11,21 +11,6 @@ const api = {
     },
 };
 
-function makePlaceholder(tool) {
-    const placeholder = document.createElement('article');
-    placeholder.className = 'tool-card tool-card-empty';
-    placeholder.dataset.tool = tool.id;
-    placeholder.dataset.card = tool.id;
-    placeholder.setAttribute('role', 'button');
-    placeholder.tabIndex = 0;
-    placeholder.innerHTML = `
-        <div class="tool-card-top"><span class="tool-card-kicker">${tool.name}</span><span class="tool-card-status">暂无内容</span></div>
-        <div class="tool-card-value">—</div>
-        <div class="tool-card-meta"><span>点击进入</span><span>添加内容</span></div>
-    `;
-    return placeholder;
-}
-
 function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 }
@@ -42,6 +27,12 @@ export function renderDashboard({onOpenTool}) {
         <div class="app-shell">
             <header class="topbar">
                 <div class="wordmark"><span class="wordmark-mark">✦</span><span>健康工具箱</span></div>
+                <details class="tool-menu">
+                    <summary class="tool-menu-toggle">工具 ▾</summary>
+                    <ul class="tool-menu-list" role="menu">
+                        ${Object.values(registry).map((tool) => `<li><button class="tool-menu-item" role="menuitem" data-tool="${tool.id}">${escapeHtml(tool.name)}</button></li>`).join('')}
+                    </ul>
+                </details>
             </header>
             <main class="dashboard">
                 <div class="dashboard-heading">
@@ -67,8 +58,7 @@ export function renderDashboard({onOpenTool}) {
     async function renderToolCards(tool) {
         if (dragging && draggingTool === tool.id) return;
         initTool(tool);
-        let cards = await tool.renderCards();
-        if (cards.length === 0) cards = [makePlaceholder(tool)];
+        const cards = await tool.renderCards();
         const map = toolCards.get(tool.id);
         const newKeys = new Set();
         for (const card of cards) {
@@ -94,8 +84,7 @@ export function renderDashboard({onOpenTool}) {
     async function mountCards() {
         const byTool = {};
         for (const tool of Object.values(registry)) {
-            let cards = await tool.renderCards();
-            if (cards.length === 0) cards = [makePlaceholder(tool)];
+            const cards = await tool.renderCards();
             byTool[tool.id] = cards;
             toolCards.set(tool.id, new Map());
         }
@@ -194,6 +183,10 @@ export function renderDashboard({onOpenTool}) {
     grid.addEventListener('click', (event) => {
         const card = event.target.closest('[data-tool]');
         if (card) onOpenTool(card.dataset.tool);
+    });
+    document.querySelector('.tool-menu-list').addEventListener('click', (event) => {
+        const item = event.target.closest('[data-tool]');
+        if (item) onOpenTool(item.dataset.tool);
     });
     grid.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && event.target.dataset?.tool) onOpenTool(event.target.dataset.tool);
