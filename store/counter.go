@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"encoding/json"
@@ -6,16 +6,17 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"health-tool/domain"
 )
 
-type timelineFile struct {
-	Date    string          `json:"date"`
-	SavedAt time.Time       `json:"savedAt"`
-	Entries []TimelineEntry `json:"entries"`
+type CounterFile struct {
+	SavedAt  time.Time        `json:"savedAt"`
+	Counters []domain.Counter `json:"counters"`
 }
 
-func loadTimelineFile(path string) (timelineFile, error) {
-	var file timelineFile
+func LoadCounterFile(path string) (CounterFile, error) {
+	var file CounterFile
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return file, nil
@@ -24,12 +25,12 @@ func loadTimelineFile(path string) (timelineFile, error) {
 		return file, err
 	}
 	if err := json.Unmarshal(data, &file); err != nil {
-		return timelineFile{}, err
+		return CounterFile{}, err
 	}
 	return file, nil
 }
 
-func saveTimelineFile(path string, file timelineFile) error {
+func SaveCounterFile(path string, file CounterFile) error {
 	data, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
 		return err
@@ -40,10 +41,10 @@ func saveTimelineFile(path string, file timelineFile) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-func userTimelinePath() (string, error) {
+func UserCounterPath() (string, error) {
 	directory, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(directory, "health-tool", "timeline.json"), nil
+	return filepath.Join(directory, "health-tool", "counters.json"), nil
 }

@@ -1,12 +1,14 @@
-package main
+package store
 
 import (
 	"path/filepath"
 	"testing"
+
+	"health-tool/model"
 )
 
 func TestLoadSettingsDefaultsWhenFileIsMissing(t *testing.T) {
-	settings, err := loadSettings(filepath.Join(t.TempDir(), "settings.json"))
+	settings, err := LoadSettings(filepath.Join(t.TempDir(), "settings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -17,12 +19,12 @@ func TestLoadSettingsDefaultsWhenFileIsMissing(t *testing.T) {
 
 func TestSettingsRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
-	want := Settings{ReminderMinutes: 45, RestMinutes: 5}
-	if err := saveSettings(path, want); err != nil {
+	want := model.Settings{ReminderMinutes: 45, RestMinutes: 5}
+	if err := SaveSettings(path, want); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := loadSettings(path)
+	got, err := LoadSettings(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +34,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 }
 
 func TestSaveSettingsRejectsInvalidReminderMinutes(t *testing.T) {
-	if err := saveSettings(filepath.Join(t.TempDir(), "settings.json"), Settings{ReminderMinutes: 44}); err == nil {
+	if err := SaveSettings(filepath.Join(t.TempDir(), "settings.json"), model.Settings{ReminderMinutes: 44}); err == nil {
 		t.Fatal("invalid reminder duration was accepted")
 	}
 }

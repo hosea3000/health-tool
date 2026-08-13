@@ -11,6 +11,8 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"health-tool/domain"
+	"health-tool/model"
+	"health-tool/store"
 )
 
 type App struct {
@@ -22,48 +24,53 @@ type App struct {
 	notifyStarted func(int)
 	stopInput     func()
 	lastTick      time.Time
-	settings      Settings
+	settings      model.Settings
 	settingsPath  string
 	timelinePath  string
 	currentDate   string
-	timeline      []TimelineEntry
-	countdownPath   string
-	countdowns      []domain.CountdownEvent
-	cardOrderPath   string
-	cardOrder       []string
-	quitRequested   atomic.Bool
+	timeline      []model.TimelineEntry
+	countdownPath string
+	countdowns    []domain.CountdownEvent
+	cardOrderPath string
+	cardOrder     []string
+	countersPath  string
+	counters      []domain.Counter
+	quitRequested atomic.Bool
 }
 
 func NewApp() *App {
-	settings := defaultSettings()
-	path, err := userSettingsPath()
+	settings := model.DefaultSettings()
+	path, err := store.UserSettingsPath()
 	if err == nil {
-		if loaded, loadErr := loadSettings(path); loadErr == nil {
+		if loaded, loadErr := store.LoadSettings(path); loadErr == nil {
 			settings = loaded
 		}
 	}
 	app := newAppWithSettings(time.Now, func() {}, settings)
 	app.settingsPath = path
-	if timelinePath, err := userTimelinePath(); err == nil {
+	if timelinePath, err := store.UserTimelinePath(); err == nil {
 		app.timelinePath = timelinePath
 	}
-	if countdownPath, err := userCountdownPath(); err == nil {
+	if countdownPath, err := store.UserCountdownPath(); err == nil {
 		app.countdownPath = countdownPath
 	}
-	if cardOrderPath, err := userCardOrderPath(); err == nil {
+	if cardOrderPath, err := store.UserCardOrderPath(); err == nil {
 		app.cardOrderPath = cardOrderPath
+	}
+	if countersPath, err := store.UserCounterPath(); err == nil {
+		app.countersPath = countersPath
 	}
 	app.notify, app.notifyStarted = newNotifiers()
 	return app
 }
 
 func newApp(now func() time.Time, notify func()) *App {
-	return newAppWithSettings(now, notify, defaultSettings())
+	return newAppWithSettings(now, notify, model.DefaultSettings())
 }
 
-func newAppWithSettings(now func() time.Time, notify func(), settings Settings) *App {
+func newAppWithSettings(now func() time.Time, notify func(), settings model.Settings) *App {
 	return &App{
-		monitor:       domain.NewMonitor(now(), durationFromMinutes(settings.ReminderMinutes), durationFromMinutes(settings.RestMinutes)),
+		monitor:       domain.NewMonitor(now(), domain.DurationFromMinutes(settings.ReminderMinutes), domain.DurationFromMinutes(settings.RestMinutes)),
 		now:           now,
 		notify:        func(int) { notify() },
 		notifyStarted: func(int) {},
@@ -78,6 +85,7 @@ func (a *App) startup(ctx context.Context) {
 	a.loadTimelineLocked(a.now())
 	a.loadCountdownsLocked()
 	a.loadCardOrderLocked()
+	a.loadCountersLocked()
 	a.mu.Unlock()
 	var err error
 	a.stopInput, err = startInputMonitor(a.recordActivity)
@@ -116,22 +124,7 @@ func (a *App) requestQuit() {
 	a.quitRequested.Store(true)
 }
 
-type AppStatus struct {
-	State                string `json:"state"`
-	ElapsedSeconds       int64  `json:"elapsedSeconds"`
-	ReminderMinutes      int    `json:"reminderMinutes"`
-	RestMinutes          int    `json:"restMinutes"`
-	RestRemainingSeconds int64  `json:"restRemainingSeconds"`
-}
-
-type TimelineEntry struct {
-	Kind            string     `json:"kind"`
-	StartedAt       time.Time  `json:"startedAt"`
-	EndedAt         *time.Time `json:"endedAt,omitempty"`
-	DurationSeconds int64      `json:"durationSeconds"`
-}
-
-func (a *App) Status() AppStatus {
+func (a *App) Status() model.AppStatus {
 	a.mu.Lock()
 	now := a.now()
 	reminder := a.advanceLocked(now)
@@ -140,7 +133,7 @@ func (a *App) Status() AppStatus {
 	if restRemaining%time.Second != 0 {
 		restRemainingSeconds++
 	}
-	status := AppStatus{
+	status := model.AppStatus{
 		State:                a.monitor.State().String(),
 		ElapsedSeconds:       int64(a.monitor.Elapsed(now).Seconds()),
 		ReminderMinutes:      a.settings.ReminderMinutes,
@@ -154,12 +147,12 @@ func (a *App) Status() AppStatus {
 	return status
 }
 
-func (a *App) Timeline() []TimelineEntry {
+func (a *App) Timeline() []model.TimelineEntry {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	now := a.now()
-	entries := append([]TimelineEntry(nil), a.timeline...)
+	entries := append([]model.TimelineEntry(nil), a.timeline...)
 	sort.SliceStable(entries, func(i, j int) bool {
 		return entries[i].StartedAt.Before(entries[j].StartedAt)
 	})
@@ -175,43 +168,35 @@ func (a *App) Timeline() []TimelineEntry {
 	return entries
 }
 
-func (a *App) GetSettings() Settings {
+func (a *App) GetSettings() model.Settings {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.settings
 }
 
 func (a *App) SaveSettings(reminderMinutes int, restMinutes int) bool {
-	settings := Settings{ReminderMinutes: reminderMinutes, RestMinutes: restMinutes}
-	if a.settingsPath == "" || saveSettings(a.settingsPath, settings) != nil {
+	settings := model.Settings{ReminderMinutes: reminderMinutes, RestMinutes: restMinutes}
+	if a.settingsPath == "" || store.SaveSettings(a.settingsPath, settings) != nil {
 		return false
 	}
 	a.mu.Lock()
 	a.settings = settings
-	a.monitor.SetReminderDuration(durationFromMinutes(reminderMinutes))
-	a.monitor.SetRestDuration(durationFromMinutes(restMinutes))
+	a.monitor.SetReminderDuration(domain.DurationFromMinutes(reminderMinutes))
+	a.monitor.SetRestDuration(domain.DurationFromMinutes(restMinutes))
 	a.mu.Unlock()
 	return true
 }
 
-type CountdownView struct {
-	ID            string      `json:"id"`
-	Title         string      `json:"title"`
-	Rule          domain.Rule `json:"rule"`
-	NextDate      string      `json:"nextDate"`
-	RemainingDays int         `json:"remainingDays"`
-}
-
-func (a *App) CountdownEvents() []CountdownView {
+func (a *App) CountdownEvents() []model.CountdownView {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	now := a.now()
-	views := make([]CountdownView, 0, len(a.countdowns))
+	views := make([]model.CountdownView, 0, len(a.countdowns))
 	for _, event := range a.countdowns {
 		next := event.Rule.NextOccurrence(now)
 		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		remaining := int(next.Sub(today) / (24 * time.Hour))
-		views = append(views, CountdownView{
+		views = append(views, model.CountdownView{
 			ID:            event.ID,
 			Title:         event.Title,
 			Rule:          event.Rule,
@@ -278,7 +263,7 @@ func (a *App) loadCountdownsLocked() {
 	if a.countdownPath == "" {
 		return
 	}
-	file, err := loadCountdownFile(a.countdownPath)
+	file, err := store.LoadCountdownFile(a.countdownPath)
 	if err != nil {
 		return
 	}
@@ -294,7 +279,7 @@ func (a *App) GetCardOrder() []string {
 func (a *App) SaveCardOrder(order []string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.cardOrderPath == "" || saveCardOrderFile(a.cardOrderPath, order) != nil {
+	if a.cardOrderPath == "" || store.SaveCardOrderFile(a.cardOrderPath, order) != nil {
 		return false
 	}
 	a.cardOrder = append([]string(nil), order...)
@@ -305,7 +290,7 @@ func (a *App) loadCardOrderLocked() {
 	if a.cardOrderPath == "" {
 		return
 	}
-	order, err := loadCardOrderFile(a.cardOrderPath)
+	order, err := store.LoadCardOrderFile(a.cardOrderPath)
 	if err != nil {
 		return
 	}
@@ -316,9 +301,186 @@ func (a *App) persistCountdownsLocked() {
 	if a.countdownPath == "" {
 		return
 	}
-	_ = saveCountdownFile(a.countdownPath, countdownFile{
+	_ = store.SaveCountdownFile(a.countdownPath, store.CountdownFile{
 		SavedAt: a.now(),
 		Events:  append([]domain.CountdownEvent(nil), a.countdowns...),
+	})
+}
+
+func (a *App) Counters() []model.CounterView {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	now := a.now()
+	views := make([]model.CounterView, 0, len(a.counters))
+	for _, counter := range a.counters {
+		views = append(views, a.counterViewLocked(counter, now))
+	}
+	return views
+}
+
+func (a *App) counterViewLocked(counter domain.Counter, now time.Time) model.CounterView {
+	count := counter.CurrentCount(now)
+	return model.CounterView{
+		ID:          counter.ID,
+		Name:        counter.Name,
+		Period:      counter.Period,
+		PeriodLabel: counter.PeriodLabel(),
+		Goal:        counter.Goal,
+		Count:       count,
+		GoalReached: counter.Goal > 0 && count >= counter.Goal,
+		History:     a.counterHistoryLocked(counter, now),
+	}
+}
+
+// counterHistoryLocked 最近 7 个非零历史周期，按时间倒序。永不清零只有一个桶，无历史。
+func (a *App) counterHistoryLocked(counter domain.Counter, now time.Time) []model.CounterHistoryItem {
+	if counter.Period == domain.CounterNever {
+		return nil
+	}
+	current := counter.PeriodKey(now)
+	type entry struct {
+		key   string
+		count int
+	}
+	entries := make([]entry, 0, len(counter.Counts))
+	for key, count := range counter.Counts {
+		if key == current || count <= 0 {
+			continue
+		}
+		entries = append(entries, entry{key, count})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].key > entries[j].key })
+	if len(entries) > 7 {
+		entries = entries[:7]
+	}
+	history := make([]model.CounterHistoryItem, 0, len(entries))
+	for _, e := range entries {
+		history = append(history, model.CounterHistoryItem{Label: a.periodLabelFor(e.key, counter.Period), Count: e.count})
+	}
+	return history
+}
+
+// periodLabelFor 把桶 key 格式化成展示文案：天→"08-13"、月→"2026-08"、年→"2026"。
+func (a *App) periodLabelFor(key string, period domain.CounterPeriod) string {
+	switch period {
+	case domain.CounterMonth:
+		return key
+	case domain.CounterYear:
+		return key
+	default:
+		if len(key) >= 5 {
+			return key[5:]
+		}
+		return key
+	}
+}
+
+func (a *App) AddCounter(name string, period string, goal int) string {
+	counter := domain.Counter{ID: fmt.Sprintf("%d", a.now().UnixNano()), Name: name, Period: domain.CounterPeriod(period), Goal: goal, Counts: map[string]int{}}
+	if err := counter.Validate(); err != nil {
+		return err.Error()
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.counters = append(a.counters, counter)
+	a.persistCountersLocked()
+	return ""
+}
+
+func (a *App) UpdateCounter(id string, name string, period string, goal int) string {
+	counter := domain.Counter{ID: id, Name: name, Period: domain.CounterPeriod(period), Goal: goal}
+	if err := counter.Validate(); err != nil {
+		return err.Error()
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := range a.counters {
+		if a.counters[i].ID == id {
+			counter.Counts = a.counters[i].Counts
+			a.counters[i] = counter
+			a.persistCountersLocked()
+			return ""
+		}
+	}
+	return "counter not found"
+}
+
+func (a *App) DeleteCounter(id string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := range a.counters {
+		if a.counters[i].ID == id {
+			a.counters = append(a.counters[:i], a.counters[i+1:]...)
+			a.persistCountersLocked()
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) IncrementCounter(id string) int {
+	return a.mutateCounter(id, func(counter *domain.Counter, now time.Time) {
+		key := counter.PeriodKey(now)
+		counter.Counts[key]++
+	})
+}
+
+func (a *App) DecrementCounter(id string) int {
+	return a.mutateCounter(id, func(counter *domain.Counter, now time.Time) {
+		key := counter.PeriodKey(now)
+		if counter.Counts[key] > 0 {
+			counter.Counts[key]--
+		}
+	})
+}
+
+func (a *App) SetCounterCount(id string, count int) int {
+	if count < 0 {
+		count = 0
+	}
+	return a.mutateCounter(id, func(counter *domain.Counter, now time.Time) {
+		counter.Counts[counter.PeriodKey(now)] = count
+	})
+}
+
+// mutateCounter 对指定计数器的当前周期次数做就地变更并落盘，返回变更后的当前次数；计数器不存在时返回 -1。
+func (a *App) mutateCounter(id string, mutate func(*domain.Counter, time.Time)) int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := range a.counters {
+		if a.counters[i].ID == id {
+			now := a.now()
+			mutate(&a.counters[i], now)
+			a.persistCountersLocked()
+			return a.counters[i].CurrentCount(now)
+		}
+	}
+	return -1
+}
+
+func (a *App) loadCountersLocked() {
+	if a.countersPath == "" {
+		return
+	}
+	file, err := store.LoadCounterFile(a.countersPath)
+	if err != nil {
+		return
+	}
+	a.counters = append([]domain.Counter(nil), file.Counters...)
+	for i := range a.counters {
+		if a.counters[i].Counts == nil {
+			a.counters[i].Counts = map[string]int{}
+		}
+	}
+}
+
+func (a *App) persistCountersLocked() {
+	if a.countersPath == "" {
+		return
+	}
+	_ = store.SaveCounterFile(a.countersPath, store.CounterFile{
+		SavedAt:  a.now(),
+		Counters: append([]domain.Counter(nil), a.counters...),
 	})
 }
 
@@ -401,14 +563,14 @@ func (a *App) loadTimelineLocked(now time.Time) {
 	if a.timelinePath == "" {
 		return
 	}
-	file, err := loadTimelineFile(a.timelinePath)
+	file, err := store.LoadTimelineFile(a.timelinePath)
 	if err != nil {
 		return
 	}
 	if file.Date != now.Format("2006-01-02") {
 		return
 	}
-	a.timeline = append([]TimelineEntry(nil), file.Entries...)
+	a.timeline = append([]model.TimelineEntry(nil), file.Entries...)
 	if len(a.timeline) > 0 && a.timeline[len(a.timeline)-1].EndedAt == nil {
 		last := &a.timeline[len(a.timeline)-1]
 		savedAt := file.SavedAt
@@ -420,10 +582,10 @@ func (a *App) persistTimelineLocked(now time.Time) {
 	if a.timelinePath == "" {
 		return
 	}
-	_ = saveTimelineFile(a.timelinePath, timelineFile{
+	_ = store.SaveTimelineFile(a.timelinePath, store.TimelineFile{
 		Date:    now.Format("2006-01-02"),
 		SavedAt: now,
-		Entries: append([]TimelineEntry(nil), a.timeline...),
+		Entries: append([]model.TimelineEntry(nil), a.timeline...),
 	})
 }
 
@@ -439,7 +601,7 @@ func (a *App) recordTimelineTransitionLocked(before, after domain.State, at time
 		}
 	}
 	if after == domain.Working || after == domain.Resting || after == domain.IdlePaused {
-		a.timeline = append(a.timeline, TimelineEntry{Kind: after.String(), StartedAt: at})
+		a.timeline = append(a.timeline, model.TimelineEntry{Kind: after.String(), StartedAt: at})
 	}
 	a.persistTimelineLocked(at)
 }

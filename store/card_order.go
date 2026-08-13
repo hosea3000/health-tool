@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"encoding/json"
@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 )
 
-type cardOrderFile struct {
+type CardOrderFile struct {
 	Order []string `json:"order"`
 }
 
-func loadCardOrderFile(path string) ([]string, error) {
-	var file cardOrderFile
+func LoadCardOrderFile(path string) ([]string, error) {
+	var file CardOrderFile
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -26,8 +26,8 @@ func loadCardOrderFile(path string) ([]string, error) {
 	return file.Order, nil
 }
 
-func saveCardOrderFile(path string, order []string) error {
-	data, err := json.MarshalIndent(cardOrderFile{Order: order}, "", "  ")
+func SaveCardOrderFile(path string, order []string) error {
+	data, err := json.MarshalIndent(CardOrderFile{Order: order}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func saveCardOrderFile(path string, order []string) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-func userCardOrderPath() (string, error) {
+func UserCardOrderPath() (string, error) {
 	directory, err := os.UserConfigDir()
 	if err != nil {
 		return "", err

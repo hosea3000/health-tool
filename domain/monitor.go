@@ -13,6 +13,11 @@ const (
 	MaxRestDuration         = 30 * time.Minute
 )
 
+// DurationFromMinutes 将分钟数换算为 time.Duration。
+func DurationFromMinutes(minutes int) time.Duration {
+	return time.Duration(minutes) * time.Minute
+}
+
 type State uint8
 
 const (

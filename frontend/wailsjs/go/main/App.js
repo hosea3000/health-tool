@@ -6,12 +6,28 @@ export function AddCountdown(arg1, arg2) {
   return window['go']['main']['App']['AddCountdown'](arg1, arg2);
 }
 
+export function AddCounter(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AddCounter'](arg1, arg2, arg3);
+}
+
 export function CountdownEvents() {
   return window['go']['main']['App']['CountdownEvents']();
 }
 
+export function Counters() {
+  return window['go']['main']['App']['Counters']();
+}
+
+export function DecrementCounter(arg1) {
+  return window['go']['main']['App']['DecrementCounter'](arg1);
+}
+
 export function DeleteCountdown(arg1) {
   return window['go']['main']['App']['DeleteCountdown'](arg1);
+}
+
+export function DeleteCounter(arg1) {
+  return window['go']['main']['App']['DeleteCounter'](arg1);
 }
 
 export function GetCardOrder() {
@@ -22,12 +38,20 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function IncrementCounter(arg1) {
+  return window['go']['main']['App']['IncrementCounter'](arg1);
+}
+
 export function SaveCardOrder(arg1) {
   return window['go']['main']['App']['SaveCardOrder'](arg1);
 }
 
 export function SaveSettings(arg1, arg2) {
   return window['go']['main']['App']['SaveSettings'](arg1, arg2);
+}
+
+export function SetCounterCount(arg1, arg2) {
+  return window['go']['main']['App']['SetCounterCount'](arg1, arg2);
 }
 
 export function Status() {
@@ -40,4 +64,8 @@ export function Timeline() {
 
 export function UpdateCountdown(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateCountdown'](arg1, arg2, arg3);
+}
+
+export function UpdateCounter(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UpdateCounter'](arg1, arg2, arg3, arg4);
 }

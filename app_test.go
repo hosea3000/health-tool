@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"health-tool/domain"
+	"health-tool/model"
+	"health-tool/store"
 	"path/filepath"
 	"testing"
 	"time"
@@ -106,7 +108,7 @@ func TestAppTimelineStartsWithWorkAndTracksDuration(t *testing.T) {
 func TestAppTimelineRecordsIdlePauseAndRest(t *testing.T) {
 	start := time.Unix(0, 0)
 	now := start
-	settings := Settings{ReminderMinutes: 1, RestMinutes: 1}
+	settings := model.Settings{ReminderMinutes: 1, RestMinutes: 1}
 	app := newAppWithSettings(func() time.Time { return now }, func() {}, settings)
 
 	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start})
@@ -159,10 +161,10 @@ func TestTimelineRestoresSameDayRecords(t *testing.T) {
 	now := time.Unix(1000000, 0)
 	path := filepath.Join(t.TempDir(), "timeline.json")
 	savedAt := now.Add(time.Minute)
-	_ = saveTimelineFile(path, timelineFile{
+	_ = store.SaveTimelineFile(path, store.TimelineFile{
 		Date:    now.Format("2006-01-02"),
 		SavedAt: savedAt,
-		Entries: []TimelineEntry{
+		Entries: []model.TimelineEntry{
 			{Kind: "working", StartedAt: now, EndedAt: &now},
 			{Kind: "working", StartedAt: now.Add(time.Minute)},
 		},
@@ -183,10 +185,10 @@ func TestTimelineRestoresSameDayRecords(t *testing.T) {
 func TestTimelineIgnoresStaleDayFile(t *testing.T) {
 	now := time.Unix(1000000, 0)
 	path := filepath.Join(t.TempDir(), "timeline.json")
-	_ = saveTimelineFile(path, timelineFile{
+	_ = store.SaveTimelineFile(path, store.TimelineFile{
 		Date:    now.AddDate(0, 0, -1).Format("2006-01-02"),
 		SavedAt: now,
-		Entries: []TimelineEntry{{Kind: "working", StartedAt: now}},
+		Entries: []model.TimelineEntry{{Kind: "working", StartedAt: now}},
 	})
 	app := newApp(func() time.Time { return now }, func() {})
 	app.timelinePath = path
@@ -205,7 +207,7 @@ func TestTimelinePersistsOnTransition(t *testing.T) {
 
 	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start.Add(time.Minute)})
 
-	file, err := loadTimelineFile(path)
+	file, err := store.LoadTimelineFile(path)
 	if err != nil {
 		t.Fatalf("load persisted timeline: %v", err)
 	}
@@ -225,7 +227,7 @@ func TestTimelineShutdownClosesOpenRecord(t *testing.T) {
 	now = start.Add(2 * time.Minute)
 	app.shutdown(context.Background())
 
-	file, err := loadTimelineFile(path)
+	file, err := store.LoadTimelineFile(path)
 	if err != nil {
 		t.Fatalf("load persisted timeline: %v", err)
 	}
@@ -249,7 +251,7 @@ func TestTimelineRollsOverAtMidnight(t *testing.T) {
 	if entries := app.Timeline(); len(entries) != 0 {
 		t.Fatalf("entries after midnight = %d, want empty", len(entries))
 	}
-	file, err := loadTimelineFile(path)
+	file, err := store.LoadTimelineFile(path)
 	if err != nil {
 		t.Fatalf("load persisted timeline: %v", err)
 	}

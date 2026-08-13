@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"encoding/json"
@@ -7,16 +7,17 @@ import (
 	"path/filepath"
 	"time"
 
-	"health-tool/domain"
+	"health-tool/model"
 )
 
-type countdownFile struct {
-	SavedAt time.Time               `json:"savedAt"`
-	Events  []domain.CountdownEvent `json:"events"`
+type TimelineFile struct {
+	Date    string               `json:"date"`
+	SavedAt time.Time            `json:"savedAt"`
+	Entries []model.TimelineEntry `json:"entries"`
 }
 
-func loadCountdownFile(path string) (countdownFile, error) {
-	var file countdownFile
+func LoadTimelineFile(path string) (TimelineFile, error) {
+	var file TimelineFile
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return file, nil
@@ -25,12 +26,12 @@ func loadCountdownFile(path string) (countdownFile, error) {
 		return file, err
 	}
 	if err := json.Unmarshal(data, &file); err != nil {
-		return countdownFile{}, err
+		return TimelineFile{}, err
 	}
 	return file, nil
 }
 
-func saveCountdownFile(path string, file countdownFile) error {
+func SaveTimelineFile(path string, file TimelineFile) error {
 	data, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
 		return err
@@ -41,10 +42,10 @@ func saveCountdownFile(path string, file countdownFile) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-func userCountdownPath() (string, error) {
+func UserTimelinePath() (string, error) {
 	directory, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(directory, "health-tool", "countdowns.json"), nil
+	return filepath.Join(directory, "health-tool", "timeline.json"), nil
 }
