@@ -8,8 +8,7 @@ export function renderDetail(toolId, {onBack}) {
         <div class="app-shell">
             <header class="topbar">
                 <div class="topbar-left">
-                    <button class="back-button" id="back-button">‹ 返回</button>
-                    <div class="wordmark"><span class="wordmark-mark">✦</span><span>健康工具箱</span></div>
+                    <button class="wordmark wordmark-link" id="back-button" aria-label="返回首页"><span class="wordmark-mark">✦</span><span>健康工具箱</span></button>
                 </div>
                 <div class="topbar-meta"><span>${tool.name}</span></div>
             </header>
