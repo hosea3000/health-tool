@@ -14,6 +14,8 @@
 .wordmark, .topbar-meta, .track-heading, .track-meta, .footer { display: flex; align-items: center; }
 .topbar-left { display: flex; align-items: center; gap: 24px; }
 .wordmark { gap: 10px; font-weight: 600; }
+.wordmark-link { display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: transparent; color: #0a0a0a; cursor: pointer; font: inherit; font-weight: 600; }
+.wordmark-link:hover { opacity: 0.7; }
 .wordmark-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: #ff4d8b; color: #fff; }
 .topbar-meta { gap: 14px; color: #6a6a6a; font-size: 12px; }
 .back-button { padding: 6px 12px; border: 0; border-radius: 8px; background: #f5f0e0; color: #0a0a0a; cursor: pointer; font: inherit; font-size: 12px; }
@@ -21,26 +23,32 @@
 .settings-toggle { padding: 6px 10px; border: 0; border-radius: 8px; background: #f5f0e0; color: #0a0a0a; cursor: pointer; font: inherit; font-size: 12px; }
 .settings-toggle:hover { background: #ffb084; }
 
-.dashboard { max-width: 1240px; margin: 0 auto; padding: 48px; }
-.dashboard-heading { margin-bottom: 32px; }
-.dashboard-heading h1 { margin: 12px 0 0; font-size: clamp(40px, 5vw, 56px); }
-.card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.tool-menu { position: relative; }
+.tool-menu-toggle { list-style: none; padding: 6px 12px; border: 0; border-radius: 8px; background: #f5f0e0; color: #0a0a0a; cursor: pointer; font: inherit; font-size: 12px; }
+.tool-menu-toggle:hover { background: #ffb084; }
+.tool-menu-toggle::-webkit-details-marker { display: none; }
+.tool-menu-toggle::marker { content: ''; }
+.tool-menu-list { position: absolute; right: 0; top: calc(100% + 8px); margin: 0; padding: 6px; list-style: none; background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; box-shadow: 0 10px 24px #0a0a0a14; min-width: 160px; z-index: 10; }
+.tool-menu-item { display: block; width: 100%; padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: #0a0a0a; cursor: pointer; font: inherit; font-size: 14px; text-align: left; }
+.tool-menu-item:hover { background: #f5f0e0; }
+
+.dashboard { max-width: 1240px; margin: 0 auto; padding: 32px; }
+.dashboard-heading { margin-bottom: 20px; }
+.dashboard-heading h1 { margin: 12px 0 0; font-size: clamp(32px, 4vw, 44px); }
+.card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 @media (max-width: 1024px) {
     .card-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 640px) {
     .card-grid { grid-template-columns: 1fr; }
 }
-.tool-card { padding: 24px; border: 1px solid #e5e5e5; border-radius: 16px; background: #fff; box-shadow: 0 10px 24px #0a0a0a0d; cursor: grab; }
+.tool-card { padding: 18px; border: 1px solid #e5e5e5; border-radius: 16px; background: #fff; box-shadow: 0 10px 24px #0a0a0a0d; cursor: grab; }
 .tool-card:active { cursor: grabbing; }
 .tool-card.dragging { opacity: 0.5; }
 .tool-card.drop-before { box-shadow: 0 -3px 0 0 #ff4d8b; }
 .tool-card.drop-after { box-shadow: 0 3px 0 0 #ff4d8b; }
 .tool-card:hover { border-color: #ff4d8b; }
-.tool-card-empty { border-style: dashed; border-color: #d9d2c4; box-shadow: none; }
-.tool-card-empty:hover { border-color: #ff4d8b; }
-.tool-card-empty .tool-card-value { color: #d9d2c4; }
-.tool-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f0f0f0; }
+.tool-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
 .tool-card-head-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .counter-card-add { flex: 0 0 auto; position: relative; display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 50%; background: #ff4d8b; color: #fff; cursor: pointer; font-size: 18px; line-height: 1; }
 .counter-card-add:hover { background: #e63c74; }
@@ -48,13 +56,13 @@
 .counter-card-add:focus-visible { outline: 2px solid #ff4d8b; outline-offset: 4px; }
 .tool-card-kicker { flex: 0 0 auto; color: #ff4d8b; font-size: 12px; font-weight: 600; letter-spacing: 1.5px; }
 .tool-card-status { min-width: 0; overflow: hidden; color: #0a0a0a; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.tool-card-value { margin: 20px 0 24px; color: #0a0a0a; font-family: "Arial Rounded MT Bold", "Segoe UI", sans-serif; font-size: clamp(48px, 7vw, 72px); font-weight: 500; letter-spacing: -2px; line-height: 1; font-variant-numeric: tabular-nums; }
+.tool-card-value { margin: 12px 0 14px; color: #0a0a0a; font-family: "Arial Rounded MT Bold", "Segoe UI", sans-serif; font-size: clamp(36px, 5vw, 52px); font-weight: 500; letter-spacing: -2px; line-height: 1; font-variant-numeric: tabular-nums; }
 .tool-card-unit { font-size: 0.35em; letter-spacing: 0; }
 .tool-card-today { color: #ff4d8b; font-size: 0.6em; letter-spacing: 1px; }
 .tool-card-track { position: relative; height: 8px; border-radius: 99px; background: #f0f0f0; }
 .tool-card-track .track-progress { position: absolute; top: 0; left: 0; }
 .tool-card[data-state="waiting"] .track-progress, .tool-card[data-state="idle-paused"] .track-progress, .tool-card[data-state="resting"] .track-progress { background: #b8a4ed; }
-.tool-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; color: #9a9a9a; font-size: 12px; }
+.tool-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; color: #9a9a9a; font-size: 12px; }
 
 .countdown-detail { max-width: 1240px; margin: 0 auto; padding: 48px; }
 .countdown-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }.countdown-heading h2 { margin: 10px 0 0; color: #0a0a0a; font-family: "Arial Rounded MT Bold", "Segoe UI", sans-serif; font-size: 32px; font-weight: 500; letter-spacing: -1px; }
