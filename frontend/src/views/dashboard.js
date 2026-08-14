@@ -188,6 +188,11 @@ export function renderDashboard({onOpenTool}) {
         const item = event.target.closest('[data-tool]');
         if (item) onOpenTool(item.dataset.tool);
     });
+    const toolMenu = document.querySelector('.tool-menu');
+    const onDocClick = (event) => {
+        if (toolMenu && !event.target.closest('.tool-menu')) toolMenu.open = false;
+    };
+    document.addEventListener('click', onDocClick);
     grid.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && event.target.dataset?.tool) onOpenTool(event.target.dataset.tool);
     });
@@ -203,6 +208,7 @@ export function renderDashboard({onOpenTool}) {
         destroy() {
             timers.forEach((timer) => window.clearInterval(timer));
             timers.clear();
+            document.removeEventListener('click', onDocClick);
         },
         onReminder() {
             if (registry.reminder) renderToolCards(registry.reminder);
