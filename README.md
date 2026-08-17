@@ -1,10 +1,12 @@
 # 健康工具箱 (health-tool)
 
-一个 Windows 桌面健康助手，用 [Wails](https://wails.io) 构建。常驻系统托盘，帮你告别久坐，也帮你盯住重要的日子。
+一个 Windows 桌面健康助手，用 [Wails](https://wails.io) 构建。常驻系统托盘，帮你告别久坐、盯住重要的日子，也记录每天的小习惯。
 
 ![主界面](docs/dashboard.png)
 
 ## 功能
+
+- **顶栏「工具 ▾」**：dashboard 右上角下拉菜单可快速进入各工具的详情页
 
 ### 久坐提醒
 
@@ -29,6 +31,16 @@
 - 卡片拖拽排序，顺序持久化
 
 ![倒数日](docs/date.png)
+
+### 计数器
+
+记录重复性小习惯（喝水、吃药、运动等）的次数，每个计数器对应一张 dashboard 卡片。
+
+- **重置周期**：每天 / 每月 / 每年 / 永不清零；次数按周期写入计数桶，周期切换后自动从 0 重新累计
+- **一键 +1**：卡片右上角 ＋ 按钮直接加一次，无需进入详情
+- **可选目标值**：设置目标后卡片显示「还差 N 次 / 已达成」，未设置则只计数、不设上限
+- **详情管理**：新增、编辑、删除计数器，支持减一与直接输入精确调整次数
+- **历史回顾**：详情页展示最近 7 个非零历史周期的次数
 
 ## 下载
 
@@ -76,8 +88,9 @@ wails dev
 .
 ├── main.go             # 入口，Wails 应用配置
 ├── app.go              # 业务协调与前后端绑定方法
-├── domain/             # 领域逻辑：monitor（状态机）、countdown（到期规则）
-├── *_store.go          # 用户数据读写（settings/timeline/countdowns/card_order）
+├── model/              # 前后端数据模型（AppStatus、Settings、CountdownView、CounterView 等）
+├── domain/             # 领域逻辑：monitor（状态机）、countdown（到期规则）、counter（计数周期）
+├── store/              # 用户数据读写（settings/timeline/countdowns/card_order/counters）
 ├── *_windows.go        # Windows 实现（输入监听、托盘、通知、锁屏）
 ├── *_stub.go           # 非 Windows 空实现
 └── frontend/src/       # 前端源码（tools/<工具>/ 每个工具一个模块）
@@ -93,6 +106,7 @@ wails dev
 | `timeline.json` | 每日工作/休息时间段 |
 | `countdowns.json` | 倒数日事件 |
 | `card_order.json` | 卡片排序 |
+| `counters.json` | 计数器（名称、重置周期、目标值、计数桶） |
 
 Windows 下对应 `C:\Users\<用户名>\AppData\Roaming\health-tool\`。
 
