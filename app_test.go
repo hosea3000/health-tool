@@ -28,7 +28,7 @@ func TestAppSavesReminderSettings(t *testing.T) {
 	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
 	app.settingsPath = filepath.Join(t.TempDir(), "settings.json")
 
-	if !app.SaveSettings(45, 5) {
+	if !app.SaveSettings(45, 5, true) {
 		t.Fatal("valid reminder settings were not saved")
 	}
 	if got := app.GetSettings().ReminderMinutes; got != 45 {
@@ -114,7 +114,7 @@ func TestAppTimelineStartsWithWorkAndTracksDuration(t *testing.T) {
 func TestAppTimelineRecordsIdlePauseAndRest(t *testing.T) {
 	start := time.Unix(0, 0)
 	now := start
-	settings := model.Settings{ReminderMinutes: 1, RestMinutes: 1}
+	settings := model.Settings{ReminderMinutes: 1, RestMinutes: 1, NotificationsEnabled: true}
 	app := newAppWithSettings(func() time.Time { return now }, func() {}, settings)
 
 	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start})
@@ -480,5 +480,119 @@ func TestAppCheckForUpdatesUpToDateCleansPending(t *testing.T) {
 	}
 	if _, err := os.Stat(versionPath); !os.IsNotExist(err) {
 		t.Fatal("已是最新时 .new.version 应被清理")
+	}
+}
+
+func TestAppSilentModeKeepsWorkingWithoutNotification(t *testing.T) {
+	start := time.Unix(0, 0)
+	now := start
+	notifications := 0
+	app := newAppWithSettings(func() time.Time { return now }, func() { notifications++ }, model.Settings{ReminderMinutes: 1, RestMinutes: 1, NotificationsEnabled: false})
+
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start})
+	now = start.Add(90 * time.Second)
+	status := app.Status()
+	app.Status()
+
+	if notifications != 0 {
+		t.Fatalf("silent notifications = %d, want 0", notifications)
+	}
+	if status.State != "working" {
+		t.Fatalf("silent state = %q, want working", status.State)
+	}
+	if status.ElapsedSeconds != 90 {
+		t.Fatalf("silent elapsed = %d, want 90 (计时持续增长)", status.ElapsedSeconds)
+	}
+	if status.NotificationsEnabled {
+		t.Fatal("status should report notifications disabled")
+	}
+	if entries := app.Timeline(); len(entries) != 1 || entries[0].Kind != "working" {
+		t.Fatalf("silent timeline entries = %+v, want a single ongoing working entry", entries)
+	}
+}
+
+func TestAppNotificationToggleTakesEffectAsynchronously(t *testing.T) {
+	start := time.Unix(0, 0)
+	now := start
+	notifications := 0
+	app := newApp(func() time.Time { return now }, func() { notifications++ })
+	app.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start})
+	// 关闭：立即生效，到点不提醒
+	now = start.Add(50 * time.Second)
+	if !app.SaveSettings(1, 1, false) {
+		t.Fatal("saving disabled notifications failed")
+	}
+	now = start.Add(60 * time.Second)
+	app.Status()
+	app.Status()
+	if notifications != 0 {
+		t.Fatalf("after disable notifications = %d, want 0 (关闭立即生效)", notifications)
+	}
+	if got := app.Status().State; got != "working" {
+		t.Fatalf("after disable state = %q, want working", got)
+	}
+	// 静默 75 秒后开启：从开启时刻重新计满 60 秒，不补弹
+	now = start.Add(75 * time.Second)
+	if !app.SaveSettings(1, 1, true) {
+		t.Fatal("saving enabled notifications failed")
+	}
+	app.Status()
+	if notifications != 0 {
+		t.Fatalf("after re-enable notifications = %d, want 0 (开启不补弹)", notifications)
+	}
+	now = start.Add(135 * time.Second)
+	app.Status()
+	if notifications != 1 {
+		t.Fatalf("postponed notifications = %d, want 1 (顺延 75s+60s 时触发)", notifications)
+	}
+	if got := app.Status().State; got != "resting" {
+		t.Fatalf("postponed state = %q, want resting", got)
+	}
+}
+
+func TestAppSaveSettingsPersistsNotificationsEnabled(t *testing.T) {
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	app.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+
+	if !app.SaveSettings(45, 5, false) {
+		t.Fatal("saving silent settings failed")
+	}
+	if got := app.GetSettings().NotificationsEnabled; got {
+		t.Fatal("saved notificationsEnabled = true, want false")
+	}
+	loaded, err := store.LoadSettings(app.settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.NotificationsEnabled {
+		t.Fatal("persisted notificationsEnabled = true, want false")
+	}
+}
+
+func TestAppSilentModeSuppressesStartNotification(t *testing.T) {
+	start := time.Unix(0, 0)
+	starts := 0
+	app := newAppWithSettings(func() time.Time { return start }, func() {}, model.Settings{ReminderMinutes: 1, RestMinutes: 1, NotificationsEnabled: false})
+	app.notifyStarted = func(int) { starts++ }
+
+	// 第一次打开软件后的首次有效活动：静默模式下不弹「新的工作段已开始」通知
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start})
+	if starts != 0 {
+		t.Fatalf("silent start notifications = %d, want 0", starts)
+	}
+	if got := app.Status().State; got != "working" {
+		t.Fatalf("silent state = %q, want working", got)
+	}
+
+	// 重新开启后恢复弹出
+	now := start.Add(time.Minute)
+	app.settings.NotificationsEnabled = true
+	app.monitor.SetNotificationsEnabled(true, now)
+	app.monitor.PauseForIdle()
+	app.recordActivity(domain.EffectiveActivity{Kind: domain.Click, At: now.Add(time.Minute)})
+	if starts != 1 {
+		t.Fatalf("re-enabled start notifications = %d, want 1", starts)
 	}
 }

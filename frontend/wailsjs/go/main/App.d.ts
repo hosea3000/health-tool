@@ -37,7 +37,7 @@ export function PendingUpdateInfo():Promise<model.PendingUpdateInfo>;
 
 export function SaveCardOrder(arg1:Array<string>):Promise<boolean>;
 
-export function SaveSettings(arg1:number,arg2:number):Promise<boolean>;
+export function SaveSettings(arg1:number,arg2:number,arg3:boolean):Promise<boolean>;
 
 export function SetAutoStart(arg1:boolean):Promise<void>;
 

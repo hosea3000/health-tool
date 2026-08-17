@@ -12,6 +12,7 @@ type AppStatus struct {
 	ReminderMinutes      int    `json:"reminderMinutes"`
 	RestMinutes          int    `json:"restMinutes"`
 	RestRemainingSeconds int64  `json:"restRemainingSeconds"`
+	NotificationsEnabled bool   `json:"notificationsEnabled"`
 }
 
 type TimelineEntry struct {
@@ -55,6 +56,9 @@ const (
 type Settings struct {
 	ReminderMinutes int `json:"reminderMinutes"`
 	RestMinutes     int `json:"restMinutes"`
+	// NotificationsEnabled 是久坐提醒通知开关；关闭即静默记录模式。
+	// 默认开启，老配置文件缺失该字段时保持默认（见 LoadSettings）。
+	NotificationsEnabled bool `json:"notificationsEnabled"`
 	// AutoStart 反映开机自启动的实际状态，由注册表实时读取填充，不持久化到 settings.json。
 	AutoStart bool `json:"autoStart,omitempty"`
 }
@@ -99,7 +103,8 @@ type PendingUpdateInfo struct {
 
 func DefaultSettings() Settings {
 	return Settings{
-		ReminderMinutes: int(domain.DefaultReminderDuration / time.Minute),
-		RestMinutes:     int(domain.DefaultRestDuration / time.Minute),
+		ReminderMinutes:      int(domain.DefaultReminderDuration / time.Minute),
+		RestMinutes:          int(domain.DefaultRestDuration / time.Minute),
+		NotificationsEnabled: true,
 	}
 }

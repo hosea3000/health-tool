@@ -77,8 +77,10 @@ func newApp(now func() time.Time, notify func()) *App {
 }
 
 func newAppWithSettings(now func() time.Time, notify func(), settings model.Settings) *App {
+	monitor := domain.NewMonitor(now(), domain.DurationFromMinutes(settings.ReminderMinutes), domain.DurationFromMinutes(settings.RestMinutes))
+	monitor.SetNotificationsEnabled(settings.NotificationsEnabled, now())
 	return &App{
-		monitor:       domain.NewMonitor(now(), domain.DurationFromMinutes(settings.ReminderMinutes), domain.DurationFromMinutes(settings.RestMinutes)),
+		monitor:       monitor,
 		now:           now,
 		notify:        func(int) { notify() },
 		notifyStarted: func(int) {},
@@ -151,6 +153,7 @@ func (a *App) Status() model.AppStatus {
 		ReminderMinutes:      a.settings.ReminderMinutes,
 		RestMinutes:          a.settings.RestMinutes,
 		RestRemainingSeconds: restRemainingSeconds,
+		NotificationsEnabled: a.settings.NotificationsEnabled,
 	}
 	a.mu.Unlock()
 	if reminder {
@@ -205,8 +208,8 @@ func (a *App) AutoStartEnabled() (bool, error) {
 	return autoStartEnabled()
 }
 
-func (a *App) SaveSettings(reminderMinutes int, restMinutes int) bool {
-	settings := model.Settings{ReminderMinutes: reminderMinutes, RestMinutes: restMinutes}
+func (a *App) SaveSettings(reminderMinutes int, restMinutes int, notificationsEnabled bool) bool {
+	settings := model.Settings{ReminderMinutes: reminderMinutes, RestMinutes: restMinutes, NotificationsEnabled: notificationsEnabled}
 	if a.settingsPath == "" || store.SaveSettings(a.settingsPath, settings) != nil {
 		return false
 	}
@@ -214,6 +217,7 @@ func (a *App) SaveSettings(reminderMinutes int, restMinutes int) bool {
 	a.settings = settings
 	a.monitor.SetReminderDuration(domain.DurationFromMinutes(reminderMinutes))
 	a.monitor.SetRestDuration(domain.DurationFromMinutes(restMinutes))
+	a.monitor.SetNotificationsEnabled(notificationsEnabled, a.now())
 	a.mu.Unlock()
 	return true
 }
@@ -529,9 +533,10 @@ func (a *App) recordActivity(activity domain.EffectiveActivity) {
 	}
 	restMinutes := a.settings.RestMinutes
 	reminderMinutes := a.settings.ReminderMinutes
+	notificationsEnabled := a.monitor.NotificationsEnabled()
 	updateTrayState(a.monitor.State().String())
 	a.mu.Unlock()
-	if started {
+	if started && notificationsEnabled {
 		a.notifyStarted(reminderMinutes)
 	}
 	if reminder {

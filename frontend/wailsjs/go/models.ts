@@ -33,6 +33,7 @@ export namespace model {
 	    reminderMinutes: number;
 	    restMinutes: number;
 	    restRemainingSeconds: number;
+	    notificationsEnabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppStatus(source);
@@ -45,6 +46,7 @@ export namespace model {
 	        this.reminderMinutes = source["reminderMinutes"];
 	        this.restMinutes = source["restMinutes"];
 	        this.restRemainingSeconds = source["restRemainingSeconds"];
+	        this.notificationsEnabled = source["notificationsEnabled"];
 	    }
 	}
 	export class CountdownView {
@@ -160,6 +162,7 @@ export namespace model {
 	export class Settings {
 	    reminderMinutes: number;
 	    restMinutes: number;
+	    notificationsEnabled: boolean;
 	    autoStart?: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -170,6 +173,7 @@ export namespace model {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.reminderMinutes = source["reminderMinutes"];
 	        this.restMinutes = source["restMinutes"];
+	        this.notificationsEnabled = source["notificationsEnabled"];
 	        this.autoStart = source["autoStart"];
 	    }
 	}

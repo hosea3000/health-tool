@@ -9,16 +9,18 @@ let previewState = hasWailsBridge ? 'waiting' : 'working';
 let previewElapsed = 0;
 let previewReminderMinutes = Number(JSON.parse(localStorage.getItem(previewSettingsKey) || '{}').reminderMinutes) || 60;
 let previewRestMinutes = Number(JSON.parse(localStorage.getItem(previewSettingsKey) || '{}').restMinutes) || 3;
+let previewNotificationsEnabled = JSON.parse(localStorage.getItem(previewSettingsKey) || '{}').notificationsEnabled !== false;
 
 const api = {
-    status: () => hasWailsBridge ? backendStatus() : Promise.resolve({state: previewState, elapsedSeconds: previewElapsed, reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes, restRemainingSeconds: 0}),
+    status: () => hasWailsBridge ? backendStatus() : Promise.resolve({state: previewState, elapsedSeconds: previewElapsed, reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes, restRemainingSeconds: 0, notificationsEnabled: previewNotificationsEnabled}),
     timeline: () => hasWailsBridge ? backendTimeline() : Promise.resolve([]),
-    settings: () => hasWailsBridge ? backendGetSettings() : Promise.resolve({reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes}),
-    saveSettings: (reminderMinutes, restMinutes) => {
-        if (hasWailsBridge) return backendSave(reminderMinutes, restMinutes);
+    settings: () => hasWailsBridge ? backendGetSettings() : Promise.resolve({reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes, notificationsEnabled: previewNotificationsEnabled}),
+    saveSettings: (reminderMinutes, restMinutes, notificationsEnabled) => {
+        if (hasWailsBridge) return backendSave(reminderMinutes, restMinutes, notificationsEnabled);
         previewReminderMinutes = reminderMinutes;
         previewRestMinutes = restMinutes;
-        localStorage.setItem(previewSettingsKey, JSON.stringify({reminderMinutes, restMinutes}));
+        previewNotificationsEnabled = notificationsEnabled;
+        localStorage.setItem(previewSettingsKey, JSON.stringify({reminderMinutes, restMinutes, notificationsEnabled}));
         return Promise.resolve(true);
     },
 };
@@ -85,7 +87,7 @@ async function renderCards() {
         card.setAttribute('role', 'button');
     card.tabIndex = 0;
     card.innerHTML = `
-        <div class="tool-card-top"><span class="tool-card-kicker">久坐提醒</span><span class="tool-card-status">${labels[status.state] ?? status.state}</span></div>
+        <div class="tool-card-top"><span class="tool-card-kicker">久坐提醒</span><span class="tool-card-status">${labels[status.state] ?? status.state}${status.notificationsEnabled === false ? ' 🔇' : ''}</span></div>
         <div class="tool-card-value">${formatElapsed(v.elapsed)}</div>
         <div class="tool-card-track"><span class="track-progress" style="width:${Math.min(Math.max(v.progressSeconds, 0) / v.totalSeconds, 1) * 100}%"></span></div>
         <div class="tool-card-meta"><span>${v.startLabel}</span><span>${v.endLabel}</span></div>
@@ -129,6 +131,15 @@ function renderDetail(host) {
                 <label class="setting-label" for="setting-rest-minutes">提醒后休息时长</label>
                 <div class="settings-value"><input id="setting-rest-minutes" type="number" min="1" max="30" step="1" value="3"><span>分钟</span></div>
                 <input class="settings-range" id="setting-rest-range" type="range" min="1" max="30" step="1" value="3" aria-label="提醒后休息时长">
+                <div class="settings-autostart" style="margin-top:12px">
+                    <div>
+                        <label class="setting-label" for="setting-notifications" style="margin-bottom:0">久坐提醒通知</label>
+                        <p class="settings-hint" style="margin:4px 0 0">关闭后仍会计时与记录，但不再弹出任何提醒通知</p>
+                    </div>
+                    <button class="autostart-toggle" id="setting-notifications" role="switch" aria-checked="true" aria-label="久坐提醒通知">
+                        <span class="autostart-toggle-knob" aria-hidden="true"></span>
+                    </button>
+                </div>
                 <p class="settings-hint">提醒时长为 1–180 分钟，休息时长为 1–30 分钟。</p>
                 <p class="settings-error" id="settings-error" hidden>请输入有效的提醒和休息时长。</p>
                 <div class="settings-actions"><button class="button-secondary" id="settings-cancel">取消</button><button class="button-primary" id="settings-save">保存设置</button></div>
@@ -149,6 +160,7 @@ function renderDetail(host) {
     const settingRange = host.querySelector('#setting-range');
     const settingRestMinutes = host.querySelector('#setting-rest-minutes');
     const settingRestRange = host.querySelector('#setting-rest-range');
+    const settingNotifications = host.querySelector('#setting-notifications');
     const settingsError = host.querySelector('#settings-error');
 
     function closeSettings() { settingsPanel.hidden = true; }
@@ -158,15 +170,20 @@ function renderDetail(host) {
         settingRange.value = settings.reminderMinutes;
         settingRestMinutes.value = settings.restMinutes;
         settingRestRange.value = settings.restMinutes;
+        settingNotifications.setAttribute('aria-checked', String(settings.notificationsEnabled !== false));
         settingsError.hidden = true;
         settingsPanel.hidden = false;
         settingMinutes.focus();
     }
 
+    function setNotificationsToggle(enabled) {
+        settingNotifications.setAttribute('aria-checked', String(enabled));
+    }
+
     async function tick() {
         const [current, timeline] = await Promise.all([api.status(), api.timeline()]);
         const v = derive(current);
-        statusElement.textContent = labels[current.state] ?? current.state;
+        statusElement.textContent = `${labels[current.state] ?? current.state}${current.notificationsEnabled === false ? ' 🔇' : ''}`;
         elapsedElement.textContent = formatElapsed(v.elapsed);
         trackStartLabelElement.textContent = v.startLabel;
         trackEndLabelElement.textContent = v.endLabel;
@@ -185,16 +202,20 @@ function renderDetail(host) {
     settingMinutes.addEventListener('input', () => { settingRange.value = settingMinutes.value; });
     settingRestRange.addEventListener('input', () => { settingRestMinutes.value = settingRestRange.value; });
     settingRestMinutes.addEventListener('input', () => { settingRestRange.value = settingRestMinutes.value; });
+    settingNotifications.addEventListener('click', () => {
+        setNotificationsToggle(settingNotifications.getAttribute('aria-checked') !== 'true');
+    });
     host.querySelector('#settings-save').addEventListener('click', async () => {
         const reminderMinutes = Number(settingMinutes.value);
         const restMinutes = Number(settingRestMinutes.value);
+        const notificationsEnabled = settingNotifications.getAttribute('aria-checked') === 'true';
         const validReminder = Number.isInteger(reminderMinutes) && reminderMinutes >= 1 && reminderMinutes <= 180 && (reminderMinutes === 1 || reminderMinutes % 5 === 0);
         const validRest = Number.isInteger(restMinutes) && restMinutes >= 1 && restMinutes <= 30;
         if (!validReminder || !validRest) {
             settingsError.hidden = false;
             return;
         }
-        if (await api.saveSettings(reminderMinutes, restMinutes)) {
+        if (await api.saveSettings(reminderMinutes, restMinutes, notificationsEnabled)) {
             closeSettings();
             await tick();
         }
