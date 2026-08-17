@@ -36,7 +36,7 @@ jobs:
           node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('wails.json'));c.info={...c.info,productVersion:'$v'};fs.writeFileSync('wails.json',JSON.stringify(c,null,2));"
 
       - name: Wails build
-        run: wails build -clean -platform windows/amd64
+        run: wails build -clean -platform windows/amd64 -ldflags "-X main.version=${GITHUB_REF_NAME#v}"
 
       - name: Create Release
         env:

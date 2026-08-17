@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -604,6 +605,26 @@ func (a *App) recordTimelineTransitionLocked(before, after domain.State, at time
 		a.timeline = append(a.timeline, model.TimelineEntry{Kind: after.String(), StartedAt: at})
 	}
 	a.persistTimelineLocked(at)
+}
+
+// updateClient 是手动检查更新使用的 HTTP 客户端，包级变量便于测试替换。
+var updateClient = &http.Client{Timeout: updateCheckTimeout}
+
+// CurrentVersion 返回运行时版本号（发布版本或 dev）。
+func (a *App) CurrentVersion() string {
+	return version
+}
+
+// CheckForUpdates 手动检查 GitHub Release 上的最新版本。dev 版本短路，不发起网络请求。
+func (a *App) CheckForUpdates() model.UpdateCheckResult {
+	if version == "" || version == "dev" {
+		return model.UpdateCheckResult{
+			Status:         model.UpdateStatusUpToDate,
+			CurrentVersion: version,
+			Message:        "当前为开发版本，不检查更新",
+		}
+	}
+	return checkForUpdates(updateClient, version, updateAPIBaseURL)
 }
 
 func (a *App) notifyReminder(restMinutes int) {

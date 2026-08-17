@@ -45,9 +45,25 @@ type CounterHistoryItem struct {
 	Count int    `json:"count"`
 }
 
+// 更新检查结果状态常量。
+const (
+	UpdateStatusUpToDate  = "up-to-date"
+	UpdateStatusAvailable = "update-available"
+	UpdateStatusError     = "error"
+)
+
 type Settings struct {
 	ReminderMinutes int `json:"reminderMinutes"`
 	RestMinutes     int `json:"restMinutes"`
+}
+
+type UpdateCheckResult struct {
+	// Status 取值：up-to-date / update-available / error。
+	Status         string `json:"status"`
+	CurrentVersion string `json:"currentVersion"`
+	LatestVersion  string `json:"latestVersion"`
+	ReleaseURL     string `json:"releaseUrl"`
+	Message        string `json:"message"`
 }
 
 func DefaultSettings() Settings {

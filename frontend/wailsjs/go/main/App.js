@@ -10,12 +10,20 @@ export function AddCounter(arg1, arg2, arg3) {
   return window['go']['main']['App']['AddCounter'](arg1, arg2, arg3);
 }
 
+export function CheckForUpdates() {
+  return window['go']['main']['App']['CheckForUpdates']();
+}
+
 export function CountdownEvents() {
   return window['go']['main']['App']['CountdownEvents']();
 }
 
 export function Counters() {
   return window['go']['main']['App']['Counters']();
+}
+
+export function CurrentVersion() {
+  return window['go']['main']['App']['CurrentVersion']();
 }
 
 export function DecrementCounter(arg1) {

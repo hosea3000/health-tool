@@ -7,9 +7,13 @@ export function AddCountdown(arg1:string,arg2:domain.Rule):Promise<string>;
 
 export function AddCounter(arg1:string,arg2:string,arg3:number):Promise<string>;
 
+export function CheckForUpdates():Promise<model.UpdateCheckResult>;
+
 export function CountdownEvents():Promise<Array<model.CountdownView>>;
 
 export function Counters():Promise<Array<model.CounterView>>;
+
+export function CurrentVersion():Promise<string>;
 
 export function DecrementCounter(arg1:string):Promise<number>;
 

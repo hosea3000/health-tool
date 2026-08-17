@@ -12,6 +12,9 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// version 是运行时版本号：发布构建由 CI 通过 -ldflags "-X main.version=<版本>" 注入，本地开发保持 dev。
+var version = "dev"
+
 func main() {
 	app := NewApp()
 

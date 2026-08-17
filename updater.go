@@ -1,0 +1,139 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"health-tool/model"
+)
+
+// GitHub 仓库信息与检查超时。
+const (
+	updateRepoOwner     = "hosea3000"
+	updateRepoName      = "health-tool"
+	updateAPIBaseURL    = "https://api.github.com"
+	updateCheckTimeout  = 10 * time.Second
+	updateResponseLimit = 1 << 20 // 1 MiB，防御异常响应体
+)
+
+// githubRelease 是 GitHub releases/latest API 响应的最小子集。
+type githubRelease struct {
+	TagName string `json:"tag_name"`
+	HTMLURL string `json:"html_url"`
+}
+
+// compareVersions 语义化版本比较：a<b 返回 -1，a==b 返回 0，a>b 返回 1。
+// 比较前剥离前导 v；pre-release 后缀视为低于对应的正式版本；任一侧无法解析时返回 0（容错为无更新）。
+func compareVersions(a, b string) int {
+	va := parseVersionNumbers(a)
+	vb := parseVersionNumbers(b)
+	if va == nil || vb == nil {
+		return 0
+	}
+	for i := 0; i < 3; i++ {
+		if va[i] != vb[i] {
+			if va[i] < vb[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	pa, pb := hasPreRelease(a), hasPreRelease(b)
+	switch {
+	case pa && !pb:
+		return -1
+	case !pa && pb:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// parseVersionNumbers 解析主/次/补丁三段数字；带前导 v 则剥离；- 之后的 pre-release 段忽略。
+// 非法版本号（空段、非数字）返回 nil。
+func parseVersionNumbers(v string) []int {
+	core := strings.TrimPrefix(v, "v")
+	if i := strings.IndexByte(core, '-'); i >= 0 {
+		core = core[:i]
+	}
+	parts := strings.Split(core, ".")
+	if len(parts) == 0 || len(parts) > 3 {
+		return nil
+	}
+	nums := make([]int, 3)
+	for i, part := range parts {
+		if part == "" {
+			return nil
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 {
+			return nil
+		}
+		nums[i] = n
+	}
+	return nums
+}
+
+// hasPreRelease 判断版本号是否带 pre-release 后缀（如 0.2.0-beta）。
+func hasPreRelease(v string) bool {
+	return strings.Contains(strings.TrimPrefix(v, "v"), "-")
+}
+
+// isUpToDate 当前版本不低于最新版本时视为已是最新。
+func isUpToDate(current, latest string) bool {
+	return compareVersions(current, latest) >= 0
+}
+
+// checkForUpdates 请求 GitHub releases/latest 并映射为三态结果。client 与 baseURL 由调用方注入，便于测试。
+func checkForUpdates(client *http.Client, currentVersion, baseURL string) model.UpdateCheckResult {
+	result := model.UpdateCheckResult{
+		Status:         model.UpdateStatusError,
+		CurrentVersion: currentVersion,
+	}
+	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", baseURL, updateRepoOwner, updateRepoName)
+	resp, err := client.Get(url)
+	if err != nil {
+		result.Message = "检查更新失败：网络异常，请稍后重试"
+		return result
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusNotFound:
+		result.Message = "检查更新失败：仓库暂无发布版本"
+		return result
+	case http.StatusOK:
+		// 继续解析
+	case http.StatusForbidden, http.StatusTooManyRequests:
+		result.Message = "检查更新失败：请求过于频繁，请稍后再试"
+		return result
+	default:
+		result.Message = fmt.Sprintf("检查更新失败：服务暂时不可用（HTTP %d）", resp.StatusCode)
+		return result
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, updateResponseLimit))
+	if err != nil {
+		result.Message = "检查更新失败：响应读取异常"
+		return result
+	}
+	var release githubRelease
+	if err := json.Unmarshal(body, &release); err != nil || strings.TrimSpace(release.TagName) == "" {
+		result.Message = "检查更新失败：响应解析异常"
+		return result
+	}
+	latest := strings.TrimPrefix(strings.TrimSpace(release.TagName), "v")
+	if isUpToDate(currentVersion, latest) {
+		result.Status = model.UpdateStatusUpToDate
+		result.Message = "已是最新版本"
+		return result
+	}
+	result.Status = model.UpdateStatusAvailable
+	result.LatestVersion = latest
+	result.ReleaseURL = release.HTMLURL
+	result.Message = "发现新版本"
+	return result
+}

@@ -195,6 +195,26 @@ export namespace model {
 		    return a;
 		}
 	}
+	export class UpdateCheckResult {
+	    status: string;
+	    currentVersion: string;
+	    latestVersion: string;
+	    releaseUrl: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateCheckResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.currentVersion = source["currentVersion"];
+	        this.latestVersion = source["latestVersion"];
+	        this.releaseUrl = source["releaseUrl"];
+	        this.message = source["message"];
+	    }
+	}
 
 }
 
