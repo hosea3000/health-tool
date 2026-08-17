@@ -10,7 +10,7 @@
 - 前端是无框架 Vite 应用，源代码在 `frontend/src`；`main.js` 通过 `views/dashboard.js` / `views/detail.js` 切换视图，每个工具是 `frontend/src/tools/<tool>/index.js` 导出的模块，在 `frontend/src/tools/index.js` 的 `registry` 里注册。
 - `input_*`、`tray_*`、`notification_*`、`lock_*` 按平台提供 Windows 实现（`//go:build windows`）和非 Windows stub（`//go:build !windows`）；修改输入监听或托盘行为时同时检查两类文件。托盘是原生 Win32 API 实现，无 systray 依赖。
 - `CONTEXT.md` 是领域词汇表；状态名称和“有效活动”“工作段”“提醒休息期”等术语应与其保持一致。
-- 业务按 spec 驱动开发：需求/设计归档在 `openspec/`，流程为 propose → apply → archive（见 `.opencode/commands/opsx-*.md` 与 openspec skills）。
+- 业务按 spec 驱动开发：需求/设计归档在 `openspec/`，流程为 propose → apply → archive（使用 `/opsx-*` 命令与 openspec skills，全局安装在 `~/.pi/agent/` 的 `prompts/` 与 `skills/` 下）。
 
 ## 命令
 
