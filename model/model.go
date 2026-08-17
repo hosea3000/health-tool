@@ -55,6 +55,8 @@ const (
 type Settings struct {
 	ReminderMinutes int `json:"reminderMinutes"`
 	RestMinutes     int `json:"restMinutes"`
+	// AutoStart 反映开机自启动的实际状态，由注册表实时读取填充，不持久化到 settings.json。
+	AutoStart bool `json:"autoStart,omitempty"`
 }
 
 type UpdateCheckResult struct {

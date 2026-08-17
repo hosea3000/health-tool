@@ -9,6 +9,8 @@ export function AddCounter(arg1:string,arg2:string,arg3:number):Promise<string>;
 
 export function ApplyUpdateAndRestart():Promise<string>;
 
+export function AutoStartEnabled():Promise<boolean>;
+
 export function CheckForUpdates():Promise<model.UpdateCheckResult>;
 
 export function CountdownEvents():Promise<Array<model.CountdownView>>;
@@ -36,6 +38,8 @@ export function PendingUpdateInfo():Promise<model.PendingUpdateInfo>;
 export function SaveCardOrder(arg1:Array<string>):Promise<boolean>;
 
 export function SaveSettings(arg1:number,arg2:number):Promise<boolean>;
+
+export function SetAutoStart(arg1:boolean):Promise<void>;
 
 export function SetCounterCount(arg1:string,arg2:number):Promise<number>;
 

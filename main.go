@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -18,17 +19,19 @@ var version = "dev"
 func main() {
 	app := NewApp()
 
-	err := wails.Run(newAppOptions(app))
+	err := wails.Run(newAppOptions(app, hiddenFromArgs(os.Args[1:])))
 	if err != nil {
 		println("Error:", err.Error())
 	}
 }
 
-func newAppOptions(app *App) *options.App {
+func newAppOptions(app *App, hidden bool) *options.App {
 	return &options.App{
 		Title:  "health-tool",
 		Width:  1024,
 		Height: 768,
+		// 开机自启时以 --hidden 拉起：不显示主窗口，直接进入托盘驻留。
+		StartHidden: hidden,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

@@ -160,6 +160,7 @@ export namespace model {
 	export class Settings {
 	    reminderMinutes: number;
 	    restMinutes: number;
+	    autoStart?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -169,6 +170,7 @@ export namespace model {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.reminderMinutes = source["reminderMinutes"];
 	        this.restMinutes = source["restMinutes"];
+	        this.autoStart = source["autoStart"];
 	    }
 	}
 	export class TimelineEntry {

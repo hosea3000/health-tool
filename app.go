@@ -180,10 +180,29 @@ func (a *App) Timeline() []model.TimelineEntry {
 	return entries
 }
 
+// GetSettings 返回当前设置；AutoStart 字段从注册表实时读取填充，查询失败时保持 false。
 func (a *App) GetSettings() model.Settings {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.settings
+	settings := a.settings
+	a.mu.Unlock()
+	if enabled, err := autoStartEnabled(); err == nil {
+		settings.AutoStart = enabled
+	}
+	return settings
+}
+
+// SetAutoStart 开启或关闭开机自启动（写/删 HKCU Run key）。
+func (a *App) SetAutoStart(enabled bool) error {
+	if err := setAutoStart(enabled); err != nil {
+		log.Printf("set autostart %v: %v", enabled, err)
+		return err
+	}
+	return nil
+}
+
+// AutoStartEnabled 查询开机自启动当前状态；非 Windows 平台返回错误。
+func (a *App) AutoStartEnabled() (bool, error) {
+	return autoStartEnabled()
 }
 
 func (a *App) SaveSettings(reminderMinutes int, restMinutes int) bool {

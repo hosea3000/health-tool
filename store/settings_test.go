@@ -1,7 +1,9 @@
 package store
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"health-tool/model"
@@ -36,5 +38,26 @@ func TestSettingsRoundTrip(t *testing.T) {
 func TestSaveSettingsRejectsInvalidReminderMinutes(t *testing.T) {
 	if err := SaveSettings(filepath.Join(t.TempDir(), "settings.json"), model.Settings{ReminderMinutes: 44}); err == nil {
 		t.Fatal("invalid reminder duration was accepted")
+	}
+}
+
+func TestSaveSettingsDoesNotPersistAutoStart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := SaveSettings(path, model.Settings{ReminderMinutes: 45, RestMinutes: 5, AutoStart: true}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "autoStart") {
+		t.Fatalf("settings.json 不应持久化 autoStart 字段: %s", data)
+	}
+	got, err := LoadSettings(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.AutoStart {
+		t.Fatal("加载结果不应携带 autoStart 状态")
 	}
 }

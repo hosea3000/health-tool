@@ -14,6 +14,10 @@ export function ApplyUpdateAndRestart() {
   return window['go']['main']['App']['ApplyUpdateAndRestart']();
 }
 
+export function AutoStartEnabled() {
+  return window['go']['main']['App']['AutoStartEnabled']();
+}
+
 export function CheckForUpdates() {
   return window['go']['main']['App']['CheckForUpdates']();
 }
@@ -68,6 +72,10 @@ export function SaveCardOrder(arg1) {
 
 export function SaveSettings(arg1, arg2) {
   return window['go']['main']['App']['SaveSettings'](arg1, arg2);
+}
+
+export function SetAutoStart(arg1) {
+  return window['go']['main']['App']['SetAutoStart'](arg1);
 }
 
 export function SetCounterCount(arg1, arg2) {
