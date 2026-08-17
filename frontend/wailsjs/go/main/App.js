@@ -10,6 +10,10 @@ export function AddCounter(arg1, arg2, arg3) {
   return window['go']['main']['App']['AddCounter'](arg1, arg2, arg3);
 }
 
+export function ApplyUpdateAndRestart() {
+  return window['go']['main']['App']['ApplyUpdateAndRestart']();
+}
+
 export function CheckForUpdates() {
   return window['go']['main']['App']['CheckForUpdates']();
 }
@@ -38,6 +42,10 @@ export function DeleteCounter(arg1) {
   return window['go']['main']['App']['DeleteCounter'](arg1);
 }
 
+export function DownloadAndApplyUpdate() {
+  return window['go']['main']['App']['DownloadAndApplyUpdate']();
+}
+
 export function GetCardOrder() {
   return window['go']['main']['App']['GetCardOrder']();
 }
@@ -48,6 +56,10 @@ export function GetSettings() {
 
 export function IncrementCounter(arg1) {
   return window['go']['main']['App']['IncrementCounter'](arg1);
+}
+
+export function PendingUpdateInfo() {
+  return window['go']['main']['App']['PendingUpdateInfo']();
 }
 
 export function SaveCardOrder(arg1) {

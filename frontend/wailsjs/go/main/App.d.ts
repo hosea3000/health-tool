@@ -7,6 +7,8 @@ export function AddCountdown(arg1:string,arg2:domain.Rule):Promise<string>;
 
 export function AddCounter(arg1:string,arg2:string,arg3:number):Promise<string>;
 
+export function ApplyUpdateAndRestart():Promise<string>;
+
 export function CheckForUpdates():Promise<model.UpdateCheckResult>;
 
 export function CountdownEvents():Promise<Array<model.CountdownView>>;
@@ -21,11 +23,15 @@ export function DeleteCountdown(arg1:string):Promise<boolean>;
 
 export function DeleteCounter(arg1:string):Promise<boolean>;
 
+export function DownloadAndApplyUpdate():Promise<string>;
+
 export function GetCardOrder():Promise<Array<string>>;
 
 export function GetSettings():Promise<model.Settings>;
 
 export function IncrementCounter(arg1:string):Promise<number>;
+
+export function PendingUpdateInfo():Promise<model.PendingUpdateInfo>;
 
 export function SaveCardOrder(arg1:Array<string>):Promise<boolean>;
 

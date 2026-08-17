@@ -143,6 +143,20 @@ export namespace model {
 		    return a;
 		}
 	}
+	export class PendingUpdateInfo {
+	    exists: boolean;
+	    version: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PendingUpdateInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.exists = source["exists"];
+	        this.version = source["version"];
+	    }
+	}
 	export class Settings {
 	    reminderMinutes: number;
 	    restMinutes: number;
@@ -200,6 +214,7 @@ export namespace model {
 	    currentVersion: string;
 	    latestVersion: string;
 	    releaseUrl: string;
+	    downloadUrl: string;
 	    message: string;
 	
 	    static createFrom(source: any = {}) {
@@ -212,6 +227,7 @@ export namespace model {
 	        this.currentVersion = source["currentVersion"];
 	        this.latestVersion = source["latestVersion"];
 	        this.releaseUrl = source["releaseUrl"];
+	        this.downloadUrl = source["downloadUrl"];
 	        this.message = source["message"];
 	    }
 	}

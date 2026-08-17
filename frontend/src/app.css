@@ -36,6 +36,12 @@
 .update-feedback { margin-top: 16px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
 .update-feedback-text { margin: 0; color: #3a3a3a; font-size: 14px; }
 .update-feedback-error { color: #ef4444; }
+.update-actions { display: flex; gap: 12px; }
+.update-actions .settings-check-btn { margin-top: 12px; }
+.update-progress { margin-top: 16px; }
+.update-progress-track { height: 8px; border-radius: 99px; background: #f0ece0; overflow: hidden; }
+.update-progress-fill { display: block; width: 0; height: 100%; border-radius: 99px; background: #0a0a0a; transition: width 200ms linear; }
+.update-progress .update-feedback-text { margin-top: 8px; color: #6a6a6a; font-size: 12px; }
 
 .tool-menu { position: relative; }
 .tool-menu-toggle { list-style: none; padding: 6px 12px; border: 0; border-radius: 8px; background: #f5f0e0; color: #0a0a0a; cursor: pointer; font: inherit; font-size: 12px; }

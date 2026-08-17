@@ -14,17 +14,38 @@ import (
 
 // GitHub 仓库信息与检查超时。
 const (
-	updateRepoOwner     = "hosea3000"
-	updateRepoName      = "health-tool"
-	updateAPIBaseURL    = "https://api.github.com"
-	updateCheckTimeout  = 10 * time.Second
-	updateResponseLimit = 1 << 20 // 1 MiB，防御异常响应体
+	updateRepoOwner         = "hosea3000"
+	updateRepoName          = "health-tool"
+	updateAPIBaseURL        = "https://api.github.com"
+	updateCheckTimeout      = 10 * time.Second
+	updateDownloadTimeout   = 10 * time.Minute // 下载 exe 的总超时，远宽于检查请求
+	updateResponseLimit     = 1 << 20          // 1 MiB，防御异常响应体
 )
+
+// 待更新的可执行文件资产名（与 CI 发布的产物名一致）。
+const updateAssetName = "health-tool.exe"
+
+// githubAsset 是 GitHub release 资产条目的最小子集。
+type githubAsset struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}
 
 // githubRelease 是 GitHub releases/latest API 响应的最小子集。
 type githubRelease struct {
-	TagName string `json:"tag_name"`
-	HTMLURL string `json:"html_url"`
+	TagName string        `json:"tag_name"`
+	HTMLURL string        `json:"html_url"`
+	Assets  []githubAsset `json:"assets"`
+}
+
+// findAssetDownloadURL 按文件名精确匹配资产并返回其下载地址；未匹配时返回空串。
+func findAssetDownloadURL(assets []githubAsset, name string) string {
+	for _, asset := range assets {
+		if asset.Name == name {
+			return asset.BrowserDownloadURL
+		}
+	}
+	return ""
 }
 
 // compareVersions 语义化版本比较：a<b 返回 -1，a==b 返回 0，a>b 返回 1。
@@ -125,6 +146,7 @@ func checkForUpdates(client *http.Client, currentVersion, baseURL string) model.
 		result.Message = "检查更新失败：响应解析异常"
 		return result
 	}
+	result.DownloadURL = findAssetDownloadURL(release.Assets, updateAssetName)
 	latest := strings.TrimPrefix(strings.TrimSpace(release.TagName), "v")
 	if isUpToDate(currentVersion, latest) {
 		result.Status = model.UpdateStatusUpToDate

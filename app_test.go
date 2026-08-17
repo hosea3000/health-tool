@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	goruntime "runtime"
+	"strings"
+	"testing"
+	"time"
+
 	"health-tool/domain"
 	"health-tool/model"
 	"health-tool/store"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
-	"testing"
-	"time"
 )
 
 func TestAppStartsInWaitingState(t *testing.T) {
@@ -328,5 +334,151 @@ func TestCardOrderSaveLoadAndRoundTrip(t *testing.T) {
 	app2.loadCardOrderLocked()
 	if got := app2.GetCardOrder(); len(got) != 3 || got[0] != "countdown:2" {
 		t.Fatalf("round-trip order = %v, want %v", got, order)
+	}
+}
+
+func TestAppDownloadAndApplyUpdateDevShortCircuit(t *testing.T) {
+	oldVersion := version
+	version = "dev"
+	defer func() { version = oldVersion }()
+
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	if msg := app.DownloadAndApplyUpdate(); msg == "" {
+		t.Fatal("dev 版本应返回不支持自动更新的提示")
+	}
+}
+
+func TestAppApplyUpdateAndRestartDevShortCircuit(t *testing.T) {
+	oldVersion := version
+	version = "dev"
+	defer func() { version = oldVersion }()
+
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	if msg := app.ApplyUpdateAndRestart(); msg == "" {
+		t.Fatal("dev 版本应返回不支持自动更新的提示")
+	}
+}
+
+func TestAppDownloadAndApplyUpdatePlatformUnsupported(t *testing.T) {
+	if goruntime.GOOS == "windows" {
+		t.Skip("非 Windows 平台行为测试，Windows 上跳过")
+	}
+	oldVersion := version
+	version = "0.1.0"
+	defer func() { version = oldVersion }()
+
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	if msg := app.DownloadAndApplyUpdate(); msg == "" || !strings.Contains(msg, "不支持") {
+		t.Fatalf("非 Windows 平台应返回不支持提示，got %q", msg)
+	}
+}
+
+func TestAppDownloadAndApplyUpdateNoCachedURL(t *testing.T) {
+	oldVersion := version
+	version = "0.1.0"
+	defer func() { version = oldVersion }()
+
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	// 未调用 CheckForUpdates，无缓存下载地址
+	msg := app.DownloadAndApplyUpdate()
+	if msg == "" {
+		t.Fatal("无缓存下载地址时应返回错误提示")
+	}
+	if goruntime.GOOS == "windows" && !strings.Contains(msg, "检查更新") {
+		t.Fatalf("Windows 未缓存下载地址时应提示先检查更新，got %q", msg)
+	}
+}
+
+func TestAppPendingUpdateInfoDevShortCircuit(t *testing.T) {
+	oldVersion := version
+	version = "dev"
+	defer func() { version = oldVersion }()
+
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	if info := app.PendingUpdateInfo(); info.Exists {
+		t.Fatal("dev 版本不应暴露待更新状态")
+	}
+}
+
+func TestAppPendingUpdateInfo(t *testing.T) {
+	if goruntime.GOOS != "windows" {
+		t.Skip("非 Windows 平台不暴露待更新状态")
+	}
+	oldVersion := version
+	version = "0.1.6"
+	defer func() { version = oldVersion }()
+
+	exePath, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, newPath, versionPath, _ := exeUpdatePaths(exePath)
+	// 清理可能的历史残留
+	os.Remove(newPath)
+	os.Remove(versionPath)
+	defer func() {
+		os.Remove(newPath)
+		os.Remove(versionPath)
+	}()
+
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	if info := app.PendingUpdateInfo(); info.Exists {
+		t.Fatal("无 .new 时不应暴露待更新状态")
+	}
+	if err := os.WriteFile(newPath, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(versionPath, []byte("0.1.6"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info := app.PendingUpdateInfo()
+	if !info.Exists || info.Version != "0.1.6" {
+		t.Fatalf("PendingUpdateInfo = %+v, want exists+0.1.6", info)
+	}
+}
+
+func TestAppCheckForUpdatesUpToDateCleansPending(t *testing.T) {
+	oldVersion := version
+	version = "0.1.6"
+	defer func() { version = oldVersion }()
+
+	exePath, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, newPath, versionPath, _ := exeUpdatePaths(exePath)
+	os.Remove(newPath)
+	os.Remove(versionPath)
+	defer func() {
+		os.Remove(newPath)
+		os.Remove(versionPath)
+	}()
+	if err := os.WriteFile(newPath, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(versionPath, []byte("0.1.6"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"tag_name":"0.1.6","html_url":"https://example.com/release"}`))
+	}))
+	defer server.Close()
+
+	oldClient := updateClient
+	updateClient = server.Client()
+	defer func() { updateClient = oldClient }()
+
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	result := app.CheckForUpdates()
+	if result.Status != model.UpdateStatusUpToDate {
+		t.Fatalf("status = %q, want up-to-date", result.Status)
+	}
+	if _, err := os.Stat(newPath); !os.IsNotExist(err) {
+		t.Fatal("已是最新时 .new 应被清理")
+	}
+	if _, err := os.Stat(versionPath); !os.IsNotExist(err) {
+		t.Fatal("已是最新时 .new.version 应被清理")
 	}
 }
