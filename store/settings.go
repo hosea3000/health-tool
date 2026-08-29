@@ -36,6 +36,8 @@ func SaveSettings(path string, settings model.Settings) error {
 	if !domain.ValidRestDuration(domain.DurationFromMinutes(settings.RestMinutes)) {
 		return errors.New("rest minutes must be between 1 and 30")
 	}
+	// AutoStart 是注册表实时状态的投影，不持久化到文件。
+	settings.AutoStart = false
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err

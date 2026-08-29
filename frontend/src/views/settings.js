@@ -1,4 +1,4 @@
-import {CheckForUpdates as backendCheck, CurrentVersion as backendVersion, DownloadAndApplyUpdate as backendDownload, ApplyUpdateAndRestart as backendRestart, PendingUpdateInfo as backendPendingUpdate} from '../../wailsjs/go/main/App';
+import {CheckForUpdates as backendCheck, CurrentVersion as backendVersion, DownloadAndApplyUpdate as backendDownload, ApplyUpdateAndRestart as backendRestart, PendingUpdateInfo as backendPendingUpdate, AutoStartEnabled as backendAutoStartEnabled, SetAutoStart as backendSetAutoStart} from '../../wailsjs/go/main/App';
 import {BrowserOpenURL, EventsOn, EventsOff} from '../../wailsjs/runtime/runtime';
 
 const hasWailsBridge = typeof window.go?.main?.App?.CheckForUpdates === 'function';
@@ -11,6 +11,8 @@ const api = {
     download: () => (hasWailsBridge ? backendDownload() : Promise.resolve('开发预览，不支持自动更新')),
     restart: () => (hasWailsBridge ? backendRestart() : Promise.resolve('开发预览，不支持自动更新')),
     pendingUpdate: () => (hasWailsBridge ? backendPendingUpdate() : Promise.resolve({exists: false, version: ''})),
+    autoStartEnabled: () => (hasWailsBridge ? backendAutoStartEnabled() : Promise.reject(new Error('开发预览不支持开机自启动'))),
+    setAutoStart: (enabled) => (hasWailsBridge ? backendSetAutoStart(enabled) : Promise.reject(new Error('开发预览不支持开机自启动'))),
 };
 
 function escapeHtml(value) {
@@ -36,6 +38,21 @@ export function renderSettings({onBack}) {
                         <p class="settings-app-desc">为身体留一点空间 · 本地运行</p>
                     </div>
                 </section>
+                <section class="settings-section" id="autostart-section" hidden>
+                    <p class="eyebrow">通用</p>
+                    <div class="settings-block">
+                        <div class="settings-autostart">
+                            <div>
+                                <strong class="settings-app-name">开机自启动</strong>
+                                <p class="settings-app-desc">开机后自动在后台运行，静默驻留系统托盘，不弹出主窗口</p>
+                            </div>
+                            <button class="autostart-toggle" id="autostart-toggle" role="switch" aria-checked="false" aria-label="开机自启动">
+                                <span class="autostart-toggle-knob" aria-hidden="true"></span>
+                            </button>
+                        </div>
+                        <div class="update-feedback" id="autostart-feedback" hidden></div>
+                    </div>
+                </section>
                 <section class="settings-section">
                     <p class="eyebrow">更新</p>
                     <div class="settings-block">
@@ -50,6 +67,43 @@ export function renderSettings({onBack}) {
     `;
 
     document.getElementById('back-button').addEventListener('click', onBack);
+
+    // 开机自启：查询状态初始化开关；平台不支持或查询失败时隐藏整个区块
+    const autostartSection = document.getElementById('autostart-section');
+    const autostartToggle = document.getElementById('autostart-toggle');
+    const autostartFeedback = document.getElementById('autostart-feedback');
+
+    function setAutostartToggle(enabled) {
+        autostartToggle.setAttribute('aria-checked', String(enabled));
+    }
+
+    function showAutostartError(text) {
+        autostartFeedback.hidden = false;
+        autostartFeedback.innerHTML = `<p class="update-feedback-text update-feedback-error">${escapeHtml(text)}</p>`;
+    }
+
+    api.autoStartEnabled().then((enabled) => {
+        autostartSection.hidden = false;
+        setAutostartToggle(!!enabled);
+    }).catch(() => {
+        autostartSection.hidden = true;
+    });
+
+    autostartToggle.addEventListener('click', async () => {
+        if (autostartToggle.disabled) return;
+        const next = autostartToggle.getAttribute('aria-checked') !== 'true';
+        autostartToggle.disabled = true;
+        autostartFeedback.hidden = true;
+        try {
+            await api.setAutoStart(next);
+            setAutostartToggle(next);
+        } catch (err) {
+            setAutostartToggle(!next);
+            showAutostartError(err?.message || '设置开机自启动失败，请稍后重试');
+        } finally {
+            autostartToggle.disabled = false;
+        }
+    });
 
     const versionNode = document.getElementById('app-version');
     api.version().then((v) => {

@@ -62,14 +62,15 @@ type Result struct {
 }
 
 type Monitor struct {
-	state               State
-	startedAt           time.Time
-	lastActivity        time.Time
-	restStartedAt       time.Time
-	reminderAfter       time.Duration
-	restAfter           time.Duration
-	activeReminderAfter time.Duration
-	activeRestAfter     time.Duration
+	state                State
+	startedAt            time.Time
+	lastActivity         time.Time
+	restStartedAt        time.Time
+	reminderAfter        time.Duration
+	restAfter            time.Duration
+	activeReminderAfter  time.Duration
+	activeRestAfter      time.Duration
+	notificationsEnabled bool
 }
 
 func NewMonitor(now time.Time, reminderAfter time.Duration, restAfter ...time.Duration) *Monitor {
@@ -83,7 +84,7 @@ func NewMonitor(now time.Time, reminderAfter time.Duration, restAfter ...time.Du
 	if !ValidRestDuration(rest) {
 		rest = DefaultRestDuration
 	}
-	return &Monitor{state: Waiting, lastActivity: now, reminderAfter: reminderAfter, restAfter: rest, activeReminderAfter: reminderAfter, activeRestAfter: rest}
+	return &Monitor{state: Waiting, lastActivity: now, reminderAfter: reminderAfter, restAfter: rest, activeReminderAfter: reminderAfter, activeRestAfter: rest, notificationsEnabled: true}
 }
 
 func ValidReminderDuration(duration time.Duration) bool {
@@ -131,6 +132,21 @@ func (m *Monitor) SetRestDuration(duration time.Duration) bool {
 	}
 	m.restAfter = duration
 	return true
+}
+
+// SetNotificationsEnabled 设置久坐提醒通知开关，关闭立即生效（当前工作段不再触发提醒）。
+// 开启时若当前处于工作段，本轮提醒时点从当前时刻重新计算
+// （顺延为「已工作时长 + 提醒时长」），避免开启后立刻补弹提醒；
+// 非 Working 状态下开启无需处理，下一个工作段创建时按设置值正常计时。
+func (m *Monitor) SetNotificationsEnabled(enabled bool, now time.Time) {
+	m.notificationsEnabled = enabled
+	if enabled && m.state == Working && !now.Before(m.startedAt) {
+		m.activeReminderAfter = now.Sub(m.startedAt) + m.reminderAfter
+	}
+}
+
+func (m *Monitor) NotificationsEnabled() bool {
+	return m.notificationsEnabled
 }
 
 func (m *Monitor) EffectiveActivity(activity EffectiveActivity) Result {
@@ -184,6 +200,11 @@ func (m *Monitor) Advance(now time.Time) Result {
 		return Result{Changed: true}
 	}
 	if now.Sub(m.startedAt) >= m.activeReminderAfter {
+		// 通知关闭（静默记录模式）：到点不进入提醒休息期、不发送提醒，
+		// 工作段保持计时持续增长，状态转换交给真实的闲置或退出。
+		if !m.notificationsEnabled {
+			return Result{}
+		}
 		m.state = Resting
 		m.restStartedAt = now
 		return Result{Changed: true, Reminder: true}
