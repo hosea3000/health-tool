@@ -50,7 +50,7 @@ func TestCheckForUpdatesUpdateAvailable(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := checkForUpdates(server.Client(), "0.1.1", server.URL)
+	result := checkForUpdates(server.Client(), "0.1.1", server.URL, "")
 	if result.Status != model.UpdateStatusAvailable {
 		t.Fatalf("status = %q, want update-available", result.Status)
 	}
@@ -72,7 +72,7 @@ func TestCheckForUpdatesMultiAssetsMatchExe(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := checkForUpdates(server.Client(), "0.1.9", server.URL)
+	result := checkForUpdates(server.Client(), "0.1.9", server.URL, "")
 	if result.Status != model.UpdateStatusAvailable {
 		t.Fatalf("status = %q, want update-available", result.Status)
 	}
@@ -88,7 +88,7 @@ func TestCheckForUpdatesAssetMissing(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := checkForUpdates(server.Client(), "0.2.0", server.URL)
+	result := checkForUpdates(server.Client(), "0.2.0", server.URL, "")
 	if result.Status != model.UpdateStatusAvailable {
 		t.Fatalf("status = %q, want update-available", result.Status)
 	}
@@ -109,6 +109,53 @@ func TestFindAssetDownloadURL(t *testing.T) {
 	}
 }
 
+func TestProxiedURL(t *testing.T) {
+	cases := []struct {
+		name  string
+		proxy string
+		raw   string
+		want  string
+	}{
+		{"空代理直连", "", "https://api.github.com/x", "https://api.github.com/x"},
+		{"仅空白视为空", "  ", "https://api.github.com/x", "https://api.github.com/x"},
+		{"缺 scheme 补 https", "gh-proxy.com", "https://raw.example.com/f.exe", "https://gh-proxy.com/https://raw.example.com/f.exe"},
+		{"带 scheme 原样", "https://gh-proxy.com", "https://raw.example.com/f.exe", "https://gh-proxy.com/https://raw.example.com/f.exe"},
+		{"忽略尾部斜杠", "https://gh-proxy.com/", "https://raw.example.com/f.exe", "https://gh-proxy.com/https://raw.example.com/f.exe"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := proxiedURL(tc.proxy, tc.raw); got != tc.want {
+				t.Fatalf("proxiedURL(%q, %q) = %q, want %q", tc.proxy, tc.raw, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestCheckForUpdatesUsesProxyThenFallsBack 验证代理优先、代理失败时回退直连。
+func TestCheckForUpdatesUsesProxyThenFallsBack(t *testing.T) {
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"tag_name":"0.1.2","html_url":"https://example.com/release"}`))
+	}))
+	defer direct.Close()
+
+	// 代理一律 503，模拟「代理不支持 api.github.com」。
+	proxyHit := false
+	brokenProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHit = true
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer brokenProxy.Close()
+
+	result := checkForUpdates(direct.Client(), "0.1.1", direct.URL, brokenProxy.URL)
+	if !proxyHit {
+		t.Fatal("配置代理后应优先经代理发起请求")
+	}
+	if result.Status != model.UpdateStatusAvailable {
+		t.Fatalf("代理失败回退直连后 status = %q, want update-available", result.Status)
+	}
+}
+
 func TestCheckForUpdatesUpToDate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -116,7 +163,7 @@ func TestCheckForUpdatesUpToDate(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := checkForUpdates(server.Client(), "0.1.1", server.URL)
+	result := checkForUpdates(server.Client(), "0.1.1", server.URL, "")
 	if result.Status != model.UpdateStatusUpToDate {
 		t.Fatalf("status = %q, want up-to-date", result.Status)
 	}
@@ -131,7 +178,7 @@ func TestCheckForUpdatesReleaseNotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := checkForUpdates(server.Client(), "0.1.1", server.URL)
+	result := checkForUpdates(server.Client(), "0.1.1", server.URL, "")
 	if result.Status != model.UpdateStatusError {
 		t.Fatalf("status = %q, want error", result.Status)
 	}
@@ -147,7 +194,7 @@ func TestCheckForUpdatesNetworkError(t *testing.T) {
 	server.Close()
 
 	// 使用已关闭 server 的地址构造必然失败的请求
-	result := checkForUpdates(&http.Client{Timeout: time.Second}, "0.1.1", server.URL)
+	result := checkForUpdates(&http.Client{Timeout: time.Second}, "0.1.1", server.URL, "")
 	if result.Status != model.UpdateStatusError {
 		t.Fatalf("status = %q, want error", result.Status)
 	}

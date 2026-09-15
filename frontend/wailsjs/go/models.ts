@@ -164,6 +164,7 @@ export namespace model {
 	    restMinutes: number;
 	    notificationsEnabled: boolean;
 	    autoStart?: boolean;
+	    updateProxy: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -175,6 +176,7 @@ export namespace model {
 	        this.restMinutes = source["restMinutes"];
 	        this.notificationsEnabled = source["notificationsEnabled"];
 	        this.autoStart = source["autoStart"];
+	        this.updateProxy = source["updateProxy"];
 	    }
 	}
 	export class TimelineEntry {

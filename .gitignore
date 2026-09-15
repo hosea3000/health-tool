@@ -2,3 +2,7 @@ build/bin
 node_modules
 frontend/dist
 .idea/
+
+# Wails NSIS 构建产物（由 wails build 生成）
+build/windows/installer/wails_tools.nsh
+build/windows/installer/tmp/

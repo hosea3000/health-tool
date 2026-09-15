@@ -14,13 +14,15 @@ import (
 
 // GitHub 仓库信息与检查超时。
 const (
-	updateRepoOwner         = "hosea3000"
-	updateRepoName          = "health-tool"
-	updateAPIBaseURL        = "https://api.github.com"
-	updateCheckTimeout      = 10 * time.Second
-	updateDownloadTimeout   = 10 * time.Minute // 下载 exe 的总超时，远宽于检查请求
-	updateResponseLimit     = 1 << 20          // 1 MiB，防御异常响应体
+	updateRepoOwner       = "hosea3000"
+	updateRepoName        = "health-tool"
+	updateCheckTimeout    = 10 * time.Second
+	updateDownloadTimeout = 10 * time.Minute // 下载 exe 的总超时，远宽于检查请求
+	updateResponseLimit   = 1 << 20          // 1 MiB，防御异常响应体
 )
+
+// updateAPIBaseURL 是 GitHub API 基址；变量便于测试注入 httptest 地址。
+var updateAPIBaseURL = "https://api.github.com"
 
 // 待更新的可执行文件资产名（与 CI 发布的产物名一致）。
 const updateAssetName = "health-tool.exe"
@@ -46,6 +48,19 @@ func findAssetDownloadURL(assets []githubAsset, name string) string {
 		}
 	}
 	return ""
+}
+
+// proxiedURL 用加速代理前缀包装 GitHub 地址（如 gh-proxy.com 系列），检查与下载共用。
+// proxy 为空则直连返回原地址；缺少 scheme 时补 https://；忽略末尾斜杠。
+func proxiedURL(proxy, rawURL string) string {
+	proxy = strings.TrimSpace(proxy)
+	if proxy == "" {
+		return rawURL
+	}
+	if !strings.Contains(proxy, "://") {
+		proxy = "https://" + proxy
+	}
+	return strings.TrimRight(proxy, "/") + "/" + rawURL
 }
 
 // compareVersions 语义化版本比较：a<b 返回 -1，a==b 返回 0，a>b 返回 1。
@@ -111,7 +126,18 @@ func isUpToDate(current, latest string) bool {
 }
 
 // checkForUpdates 请求 GitHub releases/latest 并映射为三态结果。client 与 baseURL 由调用方注入，便于测试。
-func checkForUpdates(client *http.Client, currentVersion, baseURL string) model.UpdateCheckResult {
+// 配置了代理时优先经代理请求；代理不可用（部分代理不支持 api.github.com）时回退直连。
+func checkForUpdates(client *http.Client, currentVersion, baseURL, proxy string) model.UpdateCheckResult {
+	if proxy != "" {
+		if result := fetchLatestRelease(client, currentVersion, proxiedURL(proxy, baseURL)); result.Status != model.UpdateStatusError {
+			return result
+		}
+	}
+	return fetchLatestRelease(client, currentVersion, baseURL)
+}
+
+// fetchLatestRelease 发起一次 releases/latest 请求并解析结果。
+func fetchLatestRelease(client *http.Client, currentVersion, baseURL string) model.UpdateCheckResult {
 	result := model.UpdateCheckResult{
 		Status:         model.UpdateStatusError,
 		CurrentVersion: currentVersion,

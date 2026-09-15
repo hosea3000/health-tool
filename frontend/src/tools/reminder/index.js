@@ -10,17 +10,19 @@ let previewElapsed = 0;
 let previewReminderMinutes = Number(JSON.parse(localStorage.getItem(previewSettingsKey) || '{}').reminderMinutes) || 60;
 let previewRestMinutes = Number(JSON.parse(localStorage.getItem(previewSettingsKey) || '{}').restMinutes) || 3;
 let previewNotificationsEnabled = JSON.parse(localStorage.getItem(previewSettingsKey) || '{}').notificationsEnabled !== false;
+let previewUpdateProxy = JSON.parse(localStorage.getItem(previewSettingsKey) || '{}').updateProxy || '';
 
 const api = {
     status: () => hasWailsBridge ? backendStatus() : Promise.resolve({state: previewState, elapsedSeconds: previewElapsed, reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes, restRemainingSeconds: 0, notificationsEnabled: previewNotificationsEnabled}),
     timeline: () => hasWailsBridge ? backendTimeline() : Promise.resolve([]),
-    settings: () => hasWailsBridge ? backendGetSettings() : Promise.resolve({reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes, notificationsEnabled: previewNotificationsEnabled}),
-    saveSettings: (reminderMinutes, restMinutes, notificationsEnabled) => {
-        if (hasWailsBridge) return backendSave(reminderMinutes, restMinutes, notificationsEnabled);
-        previewReminderMinutes = reminderMinutes;
-        previewRestMinutes = restMinutes;
-        previewNotificationsEnabled = notificationsEnabled;
-        localStorage.setItem(previewSettingsKey, JSON.stringify({reminderMinutes, restMinutes, notificationsEnabled}));
+    settings: () => hasWailsBridge ? backendGetSettings() : Promise.resolve({reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes, notificationsEnabled: previewNotificationsEnabled, updateProxy: previewUpdateProxy}),
+    saveSettings: (settings) => {
+        if (hasWailsBridge) return backendSave(settings);
+        previewReminderMinutes = settings.reminderMinutes;
+        previewRestMinutes = settings.restMinutes;
+        previewNotificationsEnabled = settings.notificationsEnabled;
+        previewUpdateProxy = settings.updateProxy || '';
+        localStorage.setItem(previewSettingsKey, JSON.stringify({reminderMinutes: previewReminderMinutes, restMinutes: previewRestMinutes, notificationsEnabled: previewNotificationsEnabled, updateProxy: previewUpdateProxy}));
         return Promise.resolve(true);
     },
 };
@@ -164,8 +166,11 @@ function renderDetail(host) {
     const settingsError = host.querySelector('#settings-error');
 
     function closeSettings() { settingsPanel.hidden = true; }
+    // 提醒工具不编辑代理，但保存时必须原样回传，避免覆盖设置页配置。
+    let loadedUpdateProxy = '';
     async function openSettings() {
         const settings = await api.settings();
+        loadedUpdateProxy = settings.updateProxy || '';
         settingMinutes.value = settings.reminderMinutes;
         settingRange.value = settings.reminderMinutes;
         settingRestMinutes.value = settings.restMinutes;
@@ -215,7 +220,7 @@ function renderDetail(host) {
             settingsError.hidden = false;
             return;
         }
-        if (await api.saveSettings(reminderMinutes, restMinutes, notificationsEnabled)) {
+        if (await api.saveSettings({reminderMinutes, restMinutes, notificationsEnabled, updateProxy: loadedUpdateProxy})) {
             closeSettings();
             await tick();
         }

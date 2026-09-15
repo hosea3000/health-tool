@@ -61,6 +61,8 @@ type Settings struct {
 	NotificationsEnabled bool `json:"notificationsEnabled"`
 	// AutoStart 反映开机自启动的实际状态，由注册表实时读取填充，不持久化到 settings.json。
 	AutoStart bool `json:"autoStart,omitempty"`
+	// UpdateProxy 是检查更新与下载更新的代理前缀（gh-proxy 系列加速地址）；空串表示直连。
+	UpdateProxy string `json:"updateProxy"`
 }
 
 type UpdateCheckResult struct {

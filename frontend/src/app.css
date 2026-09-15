@@ -39,6 +39,11 @@
 .update-actions { display: flex; gap: 12px; }
 .update-actions .settings-check-btn { margin-top: 12px; }
 .settings-autostart { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.settings-proxy-select { display: block; width: 100%; margin-top: 16px; padding: 10px 14px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; font-size: 14px; }
+.settings-proxy-select:focus { outline: none; border-color: #3a3a3a; }
+.settings-proxy-row { display: flex; gap: 12px; margin-top: 12px; }
+.settings-proxy-input { flex: 1; min-width: 0; padding: 10px 14px; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 14px; }
+.settings-proxy-input:focus { outline: none; border-color: #3a3a3a; }
 .autostart-toggle { position: relative; flex: none; width: 52px; height: 30px; padding: 0; border: 0; border-radius: 15px; background: #e5e5e5; cursor: pointer; transition: background 0.2s ease; }
 .autostart-toggle:hover { background: #d8d8d8; }
 .autostart-toggle[aria-checked="true"] { background: #0a0a0a; }

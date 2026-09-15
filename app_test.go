@@ -28,7 +28,7 @@ func TestAppSavesReminderSettings(t *testing.T) {
 	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
 	app.settingsPath = filepath.Join(t.TempDir(), "settings.json")
 
-	if !app.SaveSettings(45, 5, true) {
+	if !app.SaveSettings(model.Settings{ReminderMinutes: 45, RestMinutes: 5, NotificationsEnabled: true}) {
 		t.Fatal("valid reminder settings were not saved")
 	}
 	if got := app.GetSettings().ReminderMinutes; got != 45 {
@@ -469,6 +469,9 @@ func TestAppCheckForUpdatesUpToDateCleansPending(t *testing.T) {
 	oldClient := updateClient
 	updateClient = server.Client()
 	defer func() { updateClient = oldClient }()
+	oldBaseURL := updateAPIBaseURL
+	updateAPIBaseURL = server.URL
+	defer func() { updateAPIBaseURL = oldBaseURL }()
 
 	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
 	result := app.CheckForUpdates()
@@ -521,7 +524,7 @@ func TestAppNotificationToggleTakesEffectAsynchronously(t *testing.T) {
 	app.recordActivity(domain.EffectiveActivity{Kind: domain.KeyPress, At: start})
 	// 关闭：立即生效，到点不提醒
 	now = start.Add(50 * time.Second)
-	if !app.SaveSettings(1, 1, false) {
+	if !app.SaveSettings(model.Settings{ReminderMinutes: 1, RestMinutes: 1, NotificationsEnabled: false}) {
 		t.Fatal("saving disabled notifications failed")
 	}
 	now = start.Add(60 * time.Second)
@@ -535,7 +538,7 @@ func TestAppNotificationToggleTakesEffectAsynchronously(t *testing.T) {
 	}
 	// 静默 75 秒后开启：从开启时刻重新计满 60 秒，不补弹
 	now = start.Add(75 * time.Second)
-	if !app.SaveSettings(1, 1, true) {
+	if !app.SaveSettings(model.Settings{ReminderMinutes: 1, RestMinutes: 1, NotificationsEnabled: true}) {
 		t.Fatal("saving enabled notifications failed")
 	}
 	app.Status()
@@ -556,7 +559,7 @@ func TestAppSaveSettingsPersistsNotificationsEnabled(t *testing.T) {
 	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
 	app.settingsPath = filepath.Join(t.TempDir(), "settings.json")
 
-	if !app.SaveSettings(45, 5, false) {
+	if !app.SaveSettings(model.Settings{ReminderMinutes: 45, RestMinutes: 5, NotificationsEnabled: false}) {
 		t.Fatal("saving silent settings failed")
 	}
 	if got := app.GetSettings().NotificationsEnabled; got {
@@ -568,6 +571,25 @@ func TestAppSaveSettingsPersistsNotificationsEnabled(t *testing.T) {
 	}
 	if loaded.NotificationsEnabled {
 		t.Fatal("persisted notificationsEnabled = true, want false")
+	}
+}
+
+func TestAppSaveSettingsPersistsUpdateProxy(t *testing.T) {
+	app := newApp(func() time.Time { return time.Unix(0, 0) }, func() {})
+	app.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+
+	if !app.SaveSettings(model.Settings{ReminderMinutes: 45, RestMinutes: 5, NotificationsEnabled: true, UpdateProxy: "gh-proxy.com"}) {
+		t.Fatal("saving proxy settings failed")
+	}
+	if got := app.GetSettings().UpdateProxy; got != "gh-proxy.com" {
+		t.Fatalf("in-memory updateProxy = %q, want gh-proxy.com", got)
+	}
+	loaded, err := store.LoadSettings(app.settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.UpdateProxy != "gh-proxy.com" {
+		t.Fatalf("persisted updateProxy = %q, want gh-proxy.com", loaded.UpdateProxy)
 	}
 }
 

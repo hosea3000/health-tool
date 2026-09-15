@@ -1,9 +1,19 @@
-import {CheckForUpdates as backendCheck, CurrentVersion as backendVersion, DownloadAndApplyUpdate as backendDownload, ApplyUpdateAndRestart as backendRestart, PendingUpdateInfo as backendPendingUpdate, AutoStartEnabled as backendAutoStartEnabled, SetAutoStart as backendSetAutoStart} from '../../wailsjs/go/main/App';
+import {CheckForUpdates as backendCheck, CurrentVersion as backendVersion, DownloadAndApplyUpdate as backendDownload, ApplyUpdateAndRestart as backendRestart, PendingUpdateInfo as backendPendingUpdate, AutoStartEnabled as backendAutoStartEnabled, SetAutoStart as backendSetAutoStart, GetSettings as backendGetSettings, SaveSettings as backendSaveSettings} from '../../wailsjs/go/main/App';
 import {BrowserOpenURL, EventsOn, EventsOff} from '../../wailsjs/runtime/runtime';
 
 const hasWailsBridge = typeof window.go?.main?.App?.CheckForUpdates === 'function';
 
 const UPDATE_PROGRESS_EVENT = 'update:progress';
+const PREVIEW_SETTINGS_KEY = 'health-tool.settings';
+
+// preview 模式下把代理存 localStorage，与 reminder 工具共用同一 key。
+function previewSettings() {
+    try {
+        return JSON.parse(localStorage.getItem(PREVIEW_SETTINGS_KEY) || '{}');
+    } catch {
+        return {};
+    }
+}
 
 const api = {
     version: () => (hasWailsBridge ? backendVersion() : Promise.resolve('dev')),
@@ -13,6 +23,12 @@ const api = {
     pendingUpdate: () => (hasWailsBridge ? backendPendingUpdate() : Promise.resolve({exists: false, version: ''})),
     autoStartEnabled: () => (hasWailsBridge ? backendAutoStartEnabled() : Promise.reject(new Error('开发预览不支持开机自启动'))),
     setAutoStart: (enabled) => (hasWailsBridge ? backendSetAutoStart(enabled) : Promise.reject(new Error('开发预览不支持开机自启动'))),
+    getSettings: () => (hasWailsBridge ? backendGetSettings() : Promise.resolve(previewSettings())),
+    saveSettings: (settings) => {
+        if (hasWailsBridge) return backendSaveSettings(settings);
+        localStorage.setItem(PREVIEW_SETTINGS_KEY, JSON.stringify(settings));
+        return Promise.resolve(true);
+    },
 };
 
 function escapeHtml(value) {
@@ -59,6 +75,24 @@ export function renderSettings({onBack}) {
                         <p class="settings-app-desc">检查 GitHub Release 上是否有新版本，发现新版本后可一键下载并重启生效</p>
                         <button class="button-primary settings-check-btn" id="check-updates">检查更新</button>
                         <div class="update-feedback" id="update-feedback" hidden></div>
+                    </div>
+                </section>
+                <section class="settings-section" id="proxy-section">
+                    <p class="eyebrow">网络加速</p>
+                    <div class="settings-block">
+                        <p class="settings-app-desc">选择预设代理或自定义，检查更新与下载将经此代理；选择「直连」则不使用代理</p>
+                        <select class="settings-proxy-select" id="proxy-preset">
+                            <option value="">直连（不使用代理）</option>
+                            <option value="https://gh-proxy.com">gh-proxy.com</option>
+                            <option value="https://ghproxy.net">ghproxy.net</option>
+                            <option value="https://ghfast.top">ghfast.top</option>
+                            <option value="__custom__">自定义…</option>
+                        </select>
+                        <div class="settings-proxy-row" id="proxy-custom-row" hidden>
+                            <input class="settings-proxy-input" id="proxy-input" type="text" placeholder="https://your-proxy.com" autocomplete="off" spellcheck="false">
+                        </div>
+                        <button class="button-primary settings-check-btn" id="proxy-save">保存</button>
+                        <div class="update-feedback" id="proxy-feedback" hidden></div>
                     </div>
                 </section>
             </main>
@@ -110,6 +144,72 @@ export function renderSettings({onBack}) {
         versionNode.textContent = v === 'dev' ? '开发版本' : `版本 v${v}`;
     }).catch(() => {
         versionNode.textContent = '版本未知';
+    });
+
+    // 网络加速：下拉预设或自定义；保存时带上其余设置字段，避免只改代理却丢时长/通知。
+    const proxyPreset = document.getElementById('proxy-preset');
+    const proxyCustomRow = document.getElementById('proxy-custom-row');
+    const proxyInput = document.getElementById('proxy-input');
+    const proxySaveBtn = document.getElementById('proxy-save');
+    const proxyFeedback = document.getElementById('proxy-feedback');
+    let currentSettings = null;
+
+    function showProxyFeedback(text, isError) {
+        proxyFeedback.hidden = false;
+        proxyFeedback.innerHTML = `<p class="update-feedback-text${isError ? ' update-feedback-error' : ''}">${escapeHtml(text)}</p>`;
+    }
+
+    // 回填：已保存值命中预设则选中该预设，否则切到「自定义」并填入输入框。
+    function applyProxyValue(value) {
+        const preset = Array.from(proxyPreset.options).find((o) => o.value === value && o.value !== '__custom__');
+        if (preset) {
+            proxyPreset.value = value;
+            proxyCustomRow.hidden = true;
+        } else if (value) {
+            proxyPreset.value = '__custom__';
+            proxyCustomRow.hidden = false;
+            proxyInput.value = value;
+        } else {
+            proxyPreset.value = '';
+            proxyCustomRow.hidden = true;
+        }
+    }
+
+    proxyPreset.addEventListener('change', () => {
+        proxyCustomRow.hidden = proxyPreset.value !== '__custom__';
+        if (proxyPreset.value === '__custom__') proxyInput.focus();
+    });
+
+    api.getSettings().then((settings) => {
+        currentSettings = settings;
+        applyProxyValue(settings?.updateProxy || '');
+    }).catch(() => {
+        applyProxyValue('');
+    });
+
+    // 当前下拉 + 输入框的有效代理值。
+    function selectedProxy() {
+        return proxyPreset.value === '__custom__' ? proxyInput.value.trim() : proxyPreset.value;
+    }
+
+    proxySaveBtn.addEventListener('click', async () => {
+        proxySaveBtn.disabled = true;
+        proxyFeedback.hidden = true;
+        const settings = currentSettings ? {...currentSettings} : {};
+        settings.updateProxy = selectedProxy();
+        try {
+            if (await api.saveSettings(settings)) {
+                currentSettings = settings;
+                applyProxyValue(settings.updateProxy);
+                showProxyFeedback('已保存', false);
+            } else {
+                showProxyFeedback('保存失败，请检查时长设置是否合法', true);
+            }
+        } catch {
+            showProxyFeedback('保存失败，请稍后重试', true);
+        } finally {
+            proxySaveBtn.disabled = false;
+        }
     });
 
     const checkBtn = document.getElementById('check-updates');

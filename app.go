@@ -208,16 +208,18 @@ func (a *App) AutoStartEnabled() (bool, error) {
 	return autoStartEnabled()
 }
 
-func (a *App) SaveSettings(reminderMinutes int, restMinutes int, notificationsEnabled bool) bool {
-	settings := model.Settings{ReminderMinutes: reminderMinutes, RestMinutes: restMinutes, NotificationsEnabled: notificationsEnabled}
+// SaveSettings 持久化设置并同步运行中的监控参数。返回 true 表示保存成功。
+// AutoStart 是注册表实时状态，不在此持久化，保存时清零以免写脏文件。
+func (a *App) SaveSettings(settings model.Settings) bool {
+	settings.AutoStart = false
 	if a.settingsPath == "" || store.SaveSettings(a.settingsPath, settings) != nil {
 		return false
 	}
 	a.mu.Lock()
 	a.settings = settings
-	a.monitor.SetReminderDuration(domain.DurationFromMinutes(reminderMinutes))
-	a.monitor.SetRestDuration(domain.DurationFromMinutes(restMinutes))
-	a.monitor.SetNotificationsEnabled(notificationsEnabled, a.now())
+	a.monitor.SetReminderDuration(domain.DurationFromMinutes(settings.ReminderMinutes))
+	a.monitor.SetRestDuration(domain.DurationFromMinutes(settings.RestMinutes))
+	a.monitor.SetNotificationsEnabled(settings.NotificationsEnabled, a.now())
 	a.mu.Unlock()
 	return true
 }
@@ -663,7 +665,7 @@ func (a *App) CheckForUpdates() model.UpdateCheckResult {
 			Message:        "当前为开发版本，不检查更新",
 		}
 	}
-	result := checkForUpdates(updateClient, version, updateAPIBaseURL)
+	result := checkForUpdates(updateClient, version, updateAPIBaseURL, a.settings.UpdateProxy)
 	a.mu.Lock()
 	if result.Status == model.UpdateStatusAvailable {
 		a.updateDownloadURL = result.DownloadURL
@@ -721,6 +723,7 @@ func (a *App) DownloadAndApplyUpdate() string {
 	if url == "" {
 		return "暂无可用更新，请先检查更新"
 	}
+	url = proxiedURL(a.settings.UpdateProxy, url)
 	exePath, err := os.Executable()
 	if err != nil {
 		return "无法定位程序路径，无法自动更新"

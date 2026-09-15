@@ -33,6 +33,7 @@ Unicode true
 ## Include the wails tools
 ####
 !include "wails_tools.nsh"
+!include "LogicLib.nsh"
 
 # The version information for this two must consist of 4 parts
 VIProductVersion "${INFO_PRODUCTVERSION}.0"
@@ -64,7 +65,7 @@ ManifestDPIAware true
 
 !insertmacro MUI_UNPAGE_INSTFILES # Uinstalling page
 
-!insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
+!insertmacro MUI_LANGUAGE "SimpChinese" # Set the Language of the installer
 
 ## The following two statements can be used to sign the installer and the uninstaller. The path to the binaries are provided in %1
 #!uninstfinalize 'signtool --file "%1"'
@@ -106,9 +107,19 @@ Section
 SectionEnd
 
 Section "uninstall"
+    # 应用正在运行时拒绝卸载：托盘消息窗口类名固定为 HealthToolTrayClass。
+    FindWindow $0 "HealthToolTrayClass" ""
+    ${If} $0 != 0
+        MessageBox MB_OK|MB_ICONEXCLAMATION|MB_DEFBUTTON1 "健康工具箱 正在运行，无法卸载。$\r$\n$\r$\n请先退出应用（右键托盘图标 → 退出），然后重新卸载。" /SD IDOK
+        Quit
+    ${EndIf}
+
     !insertmacro wails.setShellContext
 
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
+    # 注意：$AppData\${PRODUCT_EXECUTABLE} 是 WebView2 运行时数据（%AppData%\health-tool.exe），
+    # 不是用户数据目录 %AppData%\health-tool\ —— 后者（settings/timeline/countdowns/card_order）
+    # 必须保留，卸载不清理，以保证重装后数据仍在。
 
     RMDir /r $INSTDIR
 
