@@ -85,6 +85,13 @@ OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the inst
 ShowInstDetails show # This will always show the installation details.
 
 Function .onInit
+   # 应用正在运行时拒绝安装：覆盖 exe 会被占用，且新旧版本混跑。类名固定为 HealthToolTrayClass。
+   FindWindow $0 "HealthToolTrayClass" ""
+   ${If} $0 != 0
+       MessageBox MB_OK|MB_ICONEXCLAMATION|MB_DEFBUTTON1 "健康工具箱 正在运行，无法安装。$\r$\n$\r$\n请先退出应用（右键托盘图标 → 退出），然后重新安装。" /SD IDOK
+       Abort
+   ${EndIf}
+
    !insertmacro wails.checkArchitecture
 FunctionEnd
 
@@ -111,7 +118,7 @@ Section "uninstall"
     FindWindow $0 "HealthToolTrayClass" ""
     ${If} $0 != 0
         MessageBox MB_OK|MB_ICONEXCLAMATION|MB_DEFBUTTON1 "健康工具箱 正在运行，无法卸载。$\r$\n$\r$\n请先退出应用（右键托盘图标 → 退出），然后重新卸载。" /SD IDOK
-        Quit
+        Abort
     ${EndIf}
 
     !insertmacro wails.setShellContext
